@@ -17,7 +17,7 @@ from ML_Functions_LoadArrays import *
 from ML_Functions_KeyNumbersAgorithms import *
 import time
 
-def ball_scraper(mBall, just_game = True, speed = True , col5 = True) : 
+def ball_scraper(mBall, just_game = True, speed = True , col5 = True, z = True): 
     """
     Scrape the ball data from the given input.
     
@@ -26,7 +26,8 @@ def ball_scraper(mBall, just_game = True, speed = True , col5 = True) :
         just_game: If True, only return the game data.
         speed: If True, include the speed of the ball.
         col5: If True, include the additional column 5.
-        
+        z: If True, include the Z-coordinate of the ball.
+
     Returns:
         Dataset of ball with the following columns:
         - x: X-coordinate of the ball.
@@ -40,14 +41,15 @@ def ball_scraper(mBall, just_game = True, speed = True , col5 = True) :
     for i in range(len(mBall)):
         mball1.append(mBall[i][0])
         mball2.append(mBall[i][1])
-        mball3.append(mBall[i][2])
+        if z:
+            mball3.append(mBall[i][2])
         if speed:
             mball4.append(mBall[i][3])
         if col5:
             mball5.append(mBall[i][4])
         mball6.append(mBall[i][5])
     # Create a new DataFrame with the split columns
-    if speed and col5:
+    if speed and col5 and z:
         df_ball_split = pd.DataFrame(
             {
                 "Ball_x": mball1,
@@ -58,7 +60,7 @@ def ball_scraper(mBall, just_game = True, speed = True , col5 = True) :
                 "game": mball6,
             }
         )
-    elif speed and not col5:
+    elif speed and not col5 and z:
         df_ball_split = pd.DataFrame(
             {
                 "Ball_x": mball1,
@@ -68,7 +70,7 @@ def ball_scraper(mBall, just_game = True, speed = True , col5 = True) :
                 "game": mball6,
             }
         )
-    elif not speed and col5:
+    elif not speed and col5 and z:
         df_ball_split = pd.DataFrame(
             {
                 "Ball_x": mball1,
@@ -78,6 +80,52 @@ def ball_scraper(mBall, just_game = True, speed = True , col5 = True) :
                 "game": mball6,
             }
         )
+    elif speed and col5 and not z:
+        df_ball_split = pd.DataFrame(
+            {
+                "Ball_x": mball1,
+                "Ball_y": mball2,
+                "Ball_Speed?": mball4,
+                "Ball_Col5": mball5,
+                "game": mball6,
+            }
+        )
+    elif not speed and not col5 and z:
+        df_ball_split = pd.DataFrame(
+            {
+                "Ball_x": mball1,
+                "Ball_y": mball2,
+                "Ball_z": mball3,
+                "game": mball6,
+            }
+        )
+    elif speed and not col5 and not z:
+        df_ball_split = pd.DataFrame(
+            {
+                "Ball_x": mball1,
+                "Ball_y": mball2,
+                "Ball_Speed?": mball4,
+                "game": mball6,
+            }
+        )
+    elif not speed and col5 and not z:
+        df_ball_split = pd.DataFrame(
+            {
+                "Ball_x": mball1,
+                "Ball_y": mball2,
+                "Ball_Col5": mball5,
+                "game": mball6,
+            }
+        )
+    elif not speed and not col5 and not z:
+        df_ball_split = pd.DataFrame(
+            {
+                "Ball_x": mball1,
+                "Ball_y": mball2,
+                "game": mball6,
+            }
+        )
+    
     if just_game: 
         ball_column_6 = df_ball_split[df_ball_split["game"] == 1]
         return ball_column_6
@@ -193,7 +241,7 @@ def game_scraper(mFcn, mTime, mBall, mOpp, just_game = True, speed = True, z = T
     return total_df
 
 
-def Load_games(TeamDir, just_game = True, speed = True, z = True, col5 = True, save = True, verbose = True):
+def Load_games(TeamDir, n_games = 1, just_game = True, speed = True, z = True, col5 = True, save = True, verbose = True):
     """
     Load and scrape game data for a list of teams.
     
@@ -216,7 +264,9 @@ def Load_games(TeamDir, just_game = True, speed = True, z = True, col5 = True, s
         RevTime = 30
         PosTime = 20
 
-        for igame in range(1, 30):
+        for igame in range(1, n_games + 1):
+            if verbose:
+                print("reading files for game: ", igame)
             ########################### All game data #############################
             start_time = time.time()
             mTime, mBall, mFcn, mOpp = SecLoad(TeamA, NamesSC, igame)
@@ -226,7 +276,5 @@ def Load_games(TeamDir, just_game = True, speed = True, z = True, col5 = True, s
             print(f"Elapsed time: {elapsed_time:.2f} seconds")
 
     return datasets
-# TeamDir = ['FCN','BIF','FCM','FCK','VFF','SIF','RFC','ACH','LYN','AAB','AGF','OB']
-TeamDir = ["FCN"]
 
-        
+
