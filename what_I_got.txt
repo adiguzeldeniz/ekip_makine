@@ -1,0 +1,52 @@
+ML_Functions_KeyNumbersAlgorithms.py
+    Contains many functions that analyze situations, i.e. pass key numbers. Functions require arrays as input and do not read directly from files.
+    Needs to be read in more detail.
+
+ML_Functions_Load_Array.py
+    Functions to read and organize files from raw data. pretty readable.
+    To read when we need some data from raw. 
+
+
+RestructureData_2425/Team 
+here 4 folders 
+    1 All data 
+    2 Others 
+    3 Passes 
+    4 XGData
+
+    1: All data : 
+    file names: Game_{TeamHome}_{TeamAway}_Score_{Home}_{Away}_Day_{Date}.pkl
+    columns really difficult to tell becuase of the format, there's a function in ML_Functions_Load_Array.py, 
+    that suggets (at least to me) that the data are positions per time. 
+    Function to read it :
+        SecLoad(TeamA,nameSC,igame): 
+            returns 4 array with (I think): 
+            Time,Ball_position,Team_looking_for_position,Opponents_position
+    
+    2 Others: 
+    Full of different sutff, can't find functions to read them, but seems possible to write one stealing from the others.
+
+
+    3 Passes: 
+    file names: Passes_{TeamHome}_{TeamAway}_Score_{Home}_{Away}_Day_{Date}.txt
+    not really clear what is inside
+
+
+    4 XGData: 
+    file names: XGData_{TeamHome}_{TeamAway}_Score_{Home}_{Away}_Day_{Date}.txt
+    Columns: 
+        0: Xg_value
+        1: half
+        2: min
+        3: sec 
+        4: nplay 
+        5: xgnumber
+        6: xgteam
+        7: xgpos1 
+        8: xgpos2
+    not really clear the others 
+    definition and reaaders of it is in : 
+                                        ML_Functions_Load_Array.py, OptaLoad(TeamA,nameXG,igame) :
+                                            returns XGPlayers,XGNumbers,XGTeam,XGValue,XGHalf,XGMin,XGSec,XGTimes,XGPos1,XGPos2
+                                        ML_Functions_Load_Array.py, MacihneLearning_OptaLoad(TeamA,nameXG,igame):
+                                            return XGNumbers,XGTeam,XGValue,XGHalf,XGMin,XGSec,XGTimes,XGPos1,XGPos2
