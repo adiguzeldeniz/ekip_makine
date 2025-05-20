@@ -213,11 +213,9 @@ def game_scraper(mFcn, mTime, mBall, mOpp, just_game = True, speed = True, z = T
         - speed_x: Speed in the X-direction.
         - speed_y: Speed in the Y-direction.
     """
-    if verbose:
-        print("reading files for game: ", igame)
-    mTime, mBall, mFcn, mOpp = SecLoad(TeamA, NamesSC, igame)
+
     time_dataset = time_scraper(mTime)
-    ball_dataset = ball_scraper(mBall , just_game = False , speed = speed, col5 = col5)
+    ball_dataset = ball_scraper(mBall , just_game = False , speed = speed, col5 = col5, z = z)
     team_dataset = team_scraper(mFcn, name = 'home', speed = speed, z = z)
     opponent_dataset = team_scraper(mOpp, name = 'away', speed = speed, z = z)
     total_df = pd.concat([time_dataset, ball_dataset, team_dataset, opponent_dataset], axis=1)
@@ -231,12 +229,6 @@ def game_scraper(mFcn, mTime, mBall, mOpp, just_game = True, speed = True, z = T
         print("Team dataset shape: ", team_dataset.shape)
         print("Opponent dataset shape: ", opponent_dataset.shape)
         print("Total dataset shape: ", total_df.shape)
-
-    if save:
-        # Save the DataFrame to an HDF5 file
-        hdf_filename = NamesSC[igame].replace('.pkl', '') + ".hdf"
-        total_df.to_hdf(hdf_filename, key="df", mode="w")
-        print(f"Data saved to {hdf_filename}")
 
     return total_df
 
@@ -272,6 +264,12 @@ def Load_games(TeamDir, n_games = 1, just_game = True, speed = True, z = True, c
             mTime, mBall, mFcn, mOpp = SecLoad(TeamA, NamesSC, igame)
             game_df = game_scraper(mFcn, mTime, mBall, mOpp, just_game=just_game, speed=speed, z=z, col5=col5, save=save, verbose=verbose)
             datasets.append(game_df)
+            if save:
+                # Save the DataFrame to an HDF5 file
+                hdf_filename = NamesSC[igame].replace('.pkl', '') + ".hdf"
+                game_df.to_hdf(hdf_filename, key="df", mode="w")
+                print(f"Data saved to {hdf_filename}")
+
             elapsed_time = time.time() - start_time
             print(f"Elapsed time: {elapsed_time:.2f} seconds")
 
