@@ -11,7 +11,7 @@ import seaborn as sns
 #############################################################
 
 def GenDir(Team):
-    filename = "/home/francesco/Documenti/Master/Blok4/ML/FootballData_FromMathias_May2025/RestructuredData_2425/FCK"
+    filename = "/home/francesco/Documenti/Master/Blok4/ML/FootballData_FromMathias_May2025/../RestructuredData_2425/FCK"
     DD = []
     DDsl = []
     with open(filename, 'r') as f:
@@ -52,7 +52,7 @@ def GenSecName(TeamA,nameSecSpec,cmf):
 
 def SecLoad(TeamA,nameSC,igame):
     print('Loading %s'%nameSC[igame])
-    M = pd.read_pickle("RestructuredData_2425/%s/AllData/%s"%(TeamA,nameSC[igame]))
+    M = pd.read_pickle("../RestructuredData_2425/%s/AllData/%s"%(TeamA,nameSC[igame]))
     print('data read')
     mTime = M["Times"][:]
     mBall = M["Ball"][:]
@@ -63,7 +63,7 @@ def SecLoad(TeamA,nameSC,igame):
 def OptaLoad(TeamA,nameXG,igame):
     XGPlayers = []; XGTimes = []; XGHalf = []; XGMin = []; XGSec = []; XGNumbers = []; XGTeam = []; XGValue = []; XGPos1 = []; XGPos2 = [];
 
-    oname = "RestructuredData_2425/%s/XGdata/%s"%(TeamA,nameXG[igame])
+    oname = "../RestructuredData_2425/%s/XGdata/%s"%(TeamA,nameXG[igame])
     xnvalue = np.loadtxt(oname, delimiter=',', usecols=[0])
     xnplay = np.loadtxt(oname, delimiter=',',dtype = 'U', usecols=[4])
     xnnum = np.loadtxt(oname, delimiter=',', usecols=[5])
@@ -107,8 +107,8 @@ def OptaLoad(TeamA,nameXG,igame):
     return XGPlayers,XGNumbers,XGTeam,XGValue,XGHalf,XGMin,XGSec,XGTimes,XGPos1,XGPos2
 
 def Fload(Dir,Team):
-    nameSCtmp = os.listdir('RestructuredData_2425/%s/AllData'%(Team))
-    nameXGtmp = os.listdir('RestructuredData_2425/%s/XGData'%(Team))
+    nameSCtmp = os.listdir('../RestructuredData_2425/%s/AllData'%(Team))
+    nameXGtmp = os.listdir('../RestructuredData_2425/%s/XGData'%(Team))
     nameXG = []
     nameSC = []
     c = 0
@@ -124,8 +124,8 @@ def Fload(Dir,Team):
     return nameXG,nameSC
 
 def SortGames(DirN,TeamA):
-    NamesSCOld = os.listdir('RestructuredData_2425/%s/AllData'%(TeamA))
-    NamesXGOld = os.listdir('RestructuredData_2425/%s/XGdata'%(TeamA))
+    NamesSCOld = os.listdir('../RestructuredData_2425/%s/AllData'%(TeamA))
+    NamesXGOld = os.listdir('../RestructuredData_2425/%s/XGdata'%(TeamA))
     print('LEN',len(NamesSCOld))
     LS = len(NamesSCOld)
     NamesSC = []; NamesXG = []; Num = []
@@ -160,8 +160,8 @@ def SortGames(DirN,TeamA):
     return NamesXG,NamesSC
 
 def SortGamesGoals(DirN,TeamA):
-    NamesSCOld = os.listdir('RestructuredData_2425/%s/AllData'%(TeamA))
-    NamesXGOld = os.listdir('RestructuredData_2425/%s/Goals'%(TeamA))
+    NamesSCOld = os.listdir('../RestructuredData_2425/%s/AllData'%(TeamA))
+    NamesXGOld = os.listdir('../RestructuredData_2425/%s/Goals'%(TeamA))
 
     NamesSC = []; NamesXG = []
     Num = []
@@ -199,7 +199,7 @@ def SortGamesGoals(DirN,TeamA):
 def GoalLoad(TeamA,nameXG,igame,ng):
     XGPlayers = []; XGTimes = []; XGHalf = []; XGMin = []; XGSec = []; XGNumbers = []; XGTeam = []; XGValue = []
     
-    oname = "RestructuredData_2425/%s/Goals/%s"%(TeamA,nameXG[igame])
+    oname = "../RestructuredData_2425/%s/Goals/%s"%(TeamA,nameXG[igame])
 
     xnplay = np.loadtxt(oname, delimiter=',',dtype = 'U', usecols=[3])
     xnnum = np.loadtxt(oname, delimiter=',', usecols=[4])
@@ -237,7 +237,7 @@ def GoalLoad(TeamA,nameXG,igame,ng):
 def MacihneLearning_OptaLoad(TeamA,nameXG,igame):
     XGPlayers = []; XGTimes = []; XGHalf = []; XGMin = []; XGSec = []; XGNumbers = []; XGTeam = []; XGValue = []; XGPos1 = []; XGPos2 = [];
 
-    oname = "RestructuredData_2425/%s/XGdata/%s"%(TeamA,nameXG[igame])
+    oname = "../RestructuredData_2425/%s/XGdata/%s"%(TeamA,nameXG[igame])
     with open(oname, 'r') as f:
         for line in f:
             line = line.strip()
