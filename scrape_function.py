@@ -252,9 +252,6 @@ def Load_games(TeamDir, n_games = 1, just_game = True, speed = True, z = True, c
     datasets = []
     for TeamA in TeamDir:
         NamesXG, NamesSC = SortGames("Deniz we love you", TeamA)
-        tmax = 10
-        RevTime = 30
-        PosTime = 20
 
         for igame in range(1, n_games + 1):
             if verbose:
@@ -276,3 +273,5 @@ def Load_games(TeamDir, n_games = 1, just_game = True, speed = True, z = True, c
     return datasets
 
 
+Team = ['FCN']
+Load_games(Team, n_games = 1, just_game = True, speed = True, z = True, col5 = True, save = True, verbose = True)
