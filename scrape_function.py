@@ -15,6 +15,7 @@ from tabulate import tabulate
 from ML_Functions_LoadArrays import *
 
 from ML_Functions_KeyNumbersAgorithms import *
+import time
 
 def ball_scraper(mBall, just_game = True) : 
     """
@@ -56,14 +57,14 @@ def ball_scraper(mBall, just_game = True) :
         return ball_column_6
     return df_ball_split
 
-def team_scraper(mFcn) : 
+def team_scraper(mFcn, name = 'home') : 
     columns = []
     for player in range(11):
-        columns.append("player_" + str(player) + "_x")
-        columns.append("player_" + str(player) + "_y")
-        columns.append("player_" + str(player) + "_z")
-        columns.append("player_" + str(player) + "_speed_x")
-        columns.append("player_" + str(player) + "_speed_y")
+        columns.append(name + "player_" + str(player) + "_x")
+        columns.append(name + "player_" + str(player) + "_y")
+        columns.append(name + "player_" + str(player) + "_z")
+        columns.append(name + "player_" + str(player) + "_speed_x")
+        columns.append(name + "player_" + str(player) + "_speed_y")
     
     
     player_arrays = [[] for _ in range(11*5)]
@@ -107,16 +108,24 @@ for TeamA in TeamDir:
 
     for igame in range(1, 2):
         ########################### All game data #############################
+        start_time = time.time()
+
         print("reading files for game: ", igame)
         mTime, mBall, mFcn, mOpp = SecLoad(TeamA, NamesSC, igame)
         time_dataset = time_scraper(mTime)
-        ball_dataset = ball_scraper(mBall)
+        ball_dataset = ball_scraper(mBall , just_game = False)
         team_dataset = team_scraper(mFcn)
-        opponent_dataset = team_scraper(mOpp)
+        opponent_dataset = team_scraper(mOpp, name = 'away')
+        total_df = pd.concat([time_dataset, ball_dataset, team_dataset, opponent_dataset], axis=1)
+        total_df = total_df[total_df['game'] == 1]
 
         print("Time dataset shape: ", time_dataset.shape)
         print("Ball dataset shape: ", ball_dataset.shape)
         print("Team dataset shape: ", team_dataset.shape)
         print("Opponent dataset shape: ", opponent_dataset.shape)
+        print("Total dataset shape: ", total_df.shape)
+
+        elapsed_time = time.time() - start_time
+        print(f"Elapsed time: {elapsed_time:.2f} seconds")
         
         
