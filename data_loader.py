@@ -1,6 +1,9 @@
 import os
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import pandas as pd
+
 
 
 class FootballDataLoader:
@@ -24,10 +27,6 @@ class FootballDataLoader:
             int("".join(f.split("Day_20")[1].split("Z.pkl")[0].split("-")))
             for f in sc_files
         ]
-        xg_dates = [
-            int("".join(f.split("Day_20")[1].split("Z.txt")[0].split("-")))
-            for f in xg_files
-        ]
         sorted_indices = np.argsort(sc_dates)
         sorted_sc = [sc_files[i] for i in sorted_indices]
         sorted_xg = [xg_files[i] for i in sorted_indices]
@@ -46,34 +45,6 @@ class FootballDataLoader:
         M = pd.read_pickle(path)
         print("Data read.")
         return M["Times"], M["Ball"], M[self.team], M["Opp"]
-
-    def load_machine_learning_xg(self, filename):
-        path = os.path.join(self.xg_data_path, filename)
-        values = {
-            "value": [],
-            "half": [],
-            "minute": [],
-            "second": [],
-            "number": [],
-            "team": [],
-            "x": [],
-            "y": [],
-        }
-        with open(path, "r") as f:
-            for line in f:
-                v = line.strip().split(",")
-                values["value"].append(float(v[0]))
-                values["half"].append(int(v[1]))
-                values["minute"].append(int(v[2]))
-                values["second"].append(int(v[3]))
-                values["number"].append(int(v[5]))
-                values["team"].append(v[6])
-                values["x"].append(v[7])
-                values["y"].append(v[8])
-        values["time"] = [
-            m * 60 + s for m, s in zip(values["minute"], values["second"])
-        ]
-        return values
 
     def load_pass_data(self, filename):
         path = os.path.join(self.passes_path, filename)
@@ -114,75 +85,136 @@ class FootballDataLoader:
         df = pd.DataFrame(cols)
         return df[df["game"] == 1] if just_game else df
 
-    def scrape_team(self, mFcn, name="home", speed=True, z=True):
+    # def scrape_team(self, mFcn, name="home", speed=True, z=True):
+    #     numbers = [int(player[4]) for player in mFcn[0]]
+    #     cols = []
+    #     for i in numbers:
+    #         cols += [f"{name}player_{i}_x", f"{name}player_{i}_y"]
+    #         if z:
+    #             cols.append(f"{name}player_{i}_z")
+    #         if speed:
+    #             cols.append(f"{name}player_{i}_speed_x")
+    #         cols.append(f"{name}player_{i}_number")
+
+    #     data_rows = []
+    #     for frame in mFcn:
+    #         row = dict.fromkeys(cols, np.nan)
+    #         players = frame[:, 4].astype(int)
+    #         players_set = set(players)
+    #         for i in range(frame.shape[0]):
+    #             number = int(frame[i][4])
+    #             prefix = f"{name}player_{number}"
+    #             row[f"{prefix}_x"] = frame[i][0]
+    #             row[f"{prefix}_y"] = frame[i][1]
+    #             if z:
+    #                 row[f"{prefix}_z"] = frame[i][2]
+    #             if speed:
+    #                 row[f"{prefix}_speed_x"] = frame[i][3]
+    #             row[f"{prefix}_number"] = number
+    #         data_rows.append(row)
+
+    #     return pd.DataFrame(data_rows)
+
+    def scrape_team(self, mFcn, name="home", speed=True, z=True, use_artificial_indices=False):
+        if not use_artificial_indices:
+            # fallback to default behavior with real player numbers in column names
+            numbers = [int(player[4]) for player in mFcn[0]]
+            cols = []
+            for i in numbers:
+                cols += [f"{name}player_{i}_x", f"{name}player_{i}_y"]
+                if z:
+                    cols.append(f"{name}player_{i}_z")
+                if speed:
+                    cols.append(f"{name}player_{i}_speed_x")
+                cols.append(f"{name}player_{i}_number")
+
+            data_rows = []
+            for frame in mFcn:
+                row = dict.fromkeys(cols, np.nan)
+                players = frame[:, 4].astype(int)
+                for i in range(frame.shape[0]):
+                    number = int(frame[i][4])
+                    prefix = f"{name}player_{number}"
+                    row[f"{prefix}_x"] = frame[i][0]
+                    row[f"{prefix}_y"] = frame[i][1]
+                    if z:
+                        row[f"{prefix}_z"] = frame[i][2]
+                    if speed:
+                        row[f"{prefix}_speed_x"] = frame[i][3]
+                    row[f"{prefix}_number"] = number
+                data_rows.append(row)
+            return pd.DataFrame(data_rows)
+
+        # -----------------------------
+        # Artificial player slot logic
+        # -----------------------------
+        n_slots = 11
         cols = []
-        numbers = np.zeros(mFcn[0].shape[0], dtype=int)
-
-        # reading the number to inizialize corretly the player
-        for i in range(mFcn[0].shape[0]):
-            numbers[i] = mFcn[0][i][4]
-
-        for i in numbers:
+        for i in range(n_slots):
             cols += [f"{name}player_{i}_x", f"{name}player_{i}_y"]
             if z:
                 cols.append(f"{name}player_{i}_z")
             if speed:
-                cols += [f"{name}player_{i}_speed_x"]
-            cols.append(f"{name}player_{i}_number")
+                cols.append(f"{name}player_{i}_speed_x")
+            cols.append(f"{name}player_{i}_number")  # real player number
 
-        df = pd.DataFrame(columns=cols)
-        # Initialize the DataFrame with NaN values
-        for col in df.columns:
-            df[col] = np.nan
+        data_rows = []
+        active_mapping = {}  # maps real player number -> artificial slot
+        slot_occupied = {}   # maps slot -> real player number
 
-        # Fill the DataFrame with player data
-        for idx, frame in enumerate(mFcn):
-            player_on_the_field = frame.shape[0]
-            players = frame[:, 4]
-            # find the missing players
-            missing_players = [i for i in numbers if i not in players]
-            remaining_players = [i for i in numbers if i not in missing_players]
+        for frame in mFcn:
+            row = dict.fromkeys(cols, np.nan)
+            current_players = frame[:, 4].astype(int)
+            new_mapping = {}
 
-            # Fill data for players on the field
-            for i in range(player_on_the_field):
+            # Find which players are still on the field
+            still_active = set(current_players).intersection(active_mapping.keys())
+            freed_slots = set(range(n_slots)) - set(active_mapping[p] for p in still_active)
+
+            # Assign existing players
+            for i in range(frame.shape[0]):
                 number = int(frame[i][4])
-                if number in remaining_players:
-                    col_prefix = f"{name}player_{number}"
-                    df.at[idx, f"{col_prefix}_x"] = frame[i][0]
-                    df.at[idx, f"{col_prefix}_y"] = frame[i][1]
-                    if z:
-                        df.at[idx, f"{col_prefix}_z"] = frame[i][2]
-                    if speed:
-                        df.at[idx, f"{col_prefix}_speed_x"] = frame[i][3]
-                    df.at[idx, f"{col_prefix}_number"] = frame[i][4]
+                if number in active_mapping:
+                    slot = active_mapping[number]
+                else:
+                    if freed_slots:
+                        slot = freed_slots.pop()
+                    else:
+                        raise RuntimeError("More than 11 players detected on field!")
+                    active_mapping[number] = slot
+                new_mapping[number] = slot
 
-            # Fill NaN for missing players
-            for missing_player in missing_players:
-                col_prefix = f"{name}player_{missing_player}"
-                df.at[idx, f"{col_prefix}_x"] = np.nan
-                df.at[idx, f"{col_prefix}_y"] = np.nan
+                prefix = f"{name}player_{slot}"
+                row[f"{prefix}_x"] = frame[i][0]
+                row[f"{prefix}_y"] = frame[i][1]
                 if z:
-                    df.at[idx, f"{col_prefix}_z"] = np.nan
+                    row[f"{prefix}_z"] = frame[i][2]
                 if speed:
-                    df.at[idx, f"{col_prefix}_speed_x"] = np.nan
-                df.at[idx, f"{col_prefix}_number"] = missing_player
+                    row[f"{prefix}_speed_x"] = frame[i][3]
+                row[f"{prefix}_number"] = number
 
-        return df
+            # Update mapping for next frame
+            active_mapping = new_mapping.copy()
+            data_rows.append(row)
+
+        return pd.DataFrame(data_rows)
+
+
 
     def scrape_time(self, mTime):
         return pd.DataFrame(
             {"Time": [x[0] for x in mTime], "half": [x[1] for x in mTime]}
         )
 
-    def scrape_game(
-        self, filename, just_game=True, speed=True, z=True, col5=True, verbose=True
-    ):
+    def scrape_game(self, filename, just_game=True, speed=True, z=True, col5=True, verbose=True):
+        
         mTime, mBall, mFcn, mOpp = self.load_sec_game(filename)
         home_name, away_name = self.extract_teams_from_filename(filename)
         df_time = self.scrape_time(mTime)
         df_ball = self.scrape_ball(mBall, just_game=False, speed=speed, col5=col5, z=z)
-        df_team = self.scrape_team(mFcn, name=home_name, speed=speed, z=z)
-        df_opp = self.scrape_team(mOpp, name=away_name, speed=speed, z=z)
+        df_team = self.scrape_team(mFcn, name=home_name, speed=speed, z=z, use_artificial_indices=True)
+        df_opp = self.scrape_team(mOpp, name=away_name, speed=speed, z=z, use_artificial_indices=True)
+
 
         df = pd.concat([df_time, df_ball, df_team, df_opp], axis=1)
         if just_game:
@@ -194,6 +226,7 @@ class FootballDataLoader:
             print("Team shape:", df_team.shape)
             print("Opponent shape:", df_opp.shape)
             print("Total shape:", df.shape)
+
 
         return df
 
@@ -234,7 +267,39 @@ class FootballDataLoader:
                 except Exception as e:
                     print(f"[ERROR] Saving failed: {e}")
 
-            # ✅ Always append the DataFrame, even if not saving
             datasets.append(df)
 
         return datasets
+
+def main():
+    data_dir = "/Users/denizadiguzel/FootballData_FromMathias_May2025/RestructuredData_2425"
+    team = "FCK"
+    save_dir = "/Users/denizadiguzel/"
+
+    loader = FootballDataLoader(data_dir, team)
+
+    # Load first game as DataFrame
+    datasets = loader.load_all_games(n_games=1, just_game=True, speed=False, z=False, col5=False, save=False, verbose=True)
+
+    # === Inspect the loaded DataFrame ===
+    df = datasets[0]
+    print("\n=== DataFrame Overview ===")
+    print("Shape:", df.shape)
+    print("\nColumns:")
+    print(df.columns.tolist())
+    print("\nHead of Data:")
+    print(df.head(3).T)  # transpose for easier viewing of many columns
+
+    # Optional: show a small heatmap of missing data
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(12, 4))
+    sns.heatmap(df.isna(), cbar=False)
+    plt.title("Missing Data Pattern")
+    plt.tight_layout()
+    plt.show()
+
+
+main()
+
+
