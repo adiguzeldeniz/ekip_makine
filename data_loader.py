@@ -235,6 +235,7 @@ class FootballDataLoader:
         speed=True,
         z=True,
         use_artificial_players=False,
+        every_n=None,
         save=False,
         verbose=True,
     ):
@@ -242,30 +243,52 @@ class FootballDataLoader:
         Load and optionally save multiple games as pandas DataFrames.
 
         Parameters:
-        - n_games (int): Number of games to load
+        - n_games (int or "all"): Number of games to load, or "all" to load all available games
         - in_play_only (bool): Whether to keep only frames where the game is being played
         - speed (bool): Whether to include player speed
         - z (bool): Whether to include z-coordinates
-        - use_artificial_players (bool): If True, assigns players to artificial slots (0-10)
+        - use_artificial_players (bool): Assign players to artificial slots (0–10)
+        - every_n (int | None): If set, keep only every n-th frame
         - save (str | False): Directory to save HDF5 files, or False to skip saving
-        - verbose (bool): Print shapes and show plots
+        - verbose (bool or (bool, bool)): First flag for printing info, second for showing plots
         """
+
+        # Normalize verbose flags
+        if isinstance(verbose, tuple):
+            verbose_info, verbose_plots = verbose
+        else:
+            verbose_info = verbose_plots = verbose
 
         datasets = []
         _, sorted_sc = self.sort_games()
 
-        for i, filename in enumerate(sorted_sc[:n_games]):
+        # Handle "all" case for n_games
+        if isinstance(n_games, str) and n_games.lower() == "all":
+            num_to_load = len(sorted_sc)
+        elif isinstance(n_games, int):
+            num_to_load = n_games
+        else:
+            raise ValueError("n_games must be an integer or the string 'all'.")
+
+        for i, filename in enumerate(sorted_sc[:num_to_load]):
             print(f"Reading game {i+1}: {filename}")
             df = self.scrape_game(
                 filename,
                 in_play_only=in_play_only,
                 speed=speed,
                 z=z,
-                col5=True,  # Hardcoded as requested
+                col5=True,  # Hardcoded as always True
                 use_artificial_players=use_artificial_players,
-                verbose=verbose,
+                verbose=verbose_info,
             )
 
+            # Subsample by keeping every n-th frame
+            if every_n is not None and every_n > 1:
+                df = df.iloc[::every_n].reset_index(drop=True)
+                if verbose_info:
+                    print(f"Downsampled: kept every {every_n}-th frame (rows left: {len(df)})")
+
+            # Save to file if requested
             if save:
                 os.makedirs(save, exist_ok=True)
                 base_name = os.path.splitext(os.path.basename(filename))[0]
@@ -284,8 +307,8 @@ class FootballDataLoader:
 
             datasets.append(df)
 
-            if verbose:
-                # === Inspect the loaded DataFrame ===
+            # Verbose output
+            if verbose_info:
                 print("\n=== DataFrame Overview ===")
                 print("Shape:", df.shape)
                 print("\nColumns:")
@@ -293,7 +316,7 @@ class FootballDataLoader:
                 print("\nHead of Data:")
                 print(df.head(3).T)
 
-                # Missing data heatmap
+            if verbose_plots:
                 import seaborn as sns
                 import matplotlib.pyplot as plt
 
@@ -303,7 +326,6 @@ class FootballDataLoader:
                 plt.tight_layout()
                 plt.show()
 
-                # Plot 'game' column
                 if "game" in df.columns:
                     plt.figure(figsize=(10, 2))
                     plt.plot(df["game"].values, drawstyle="steps-post", color="black")
@@ -320,32 +342,41 @@ class FootballDataLoader:
         return datasets
 
 
+
+
+
 def main():
+    # === Setup paths ===
     data_dir = "/Users/denizadiguzel/FootballData_FromMathias_May2025/RestructuredData_2425"
     team = "FCK"
-    save_dir = "/Users/denizadiguzel/"
+    save_dir = "/Users/denizadiguzel/"  # Optional, used if save=True
 
+    # === Initialize loader ===
     loader = FootballDataLoader(data_dir, team)
 
-    # Load and visualize the first game using artificial player indexing
+    # === Load multiple games ===
     datasets = loader.load_all_games(
-        n_games=1,
-        in_play_only=True,             # only keep frames where the game is active
-        speed=False,                   # omit speed values to simplify
-        z=False,                       # omit z-values
-        use_artificial_players=True,   # assign fixed slots to players (0–10)
-        save=False,                    # don't save to file
-        verbose=True                   # show column names, head, missing data heatmap, and 'game' signal
+        n_games= 2,                     # Or use "all" to load everything
+        in_play_only=True,            # Only use frames when game is in play
+        speed=False,                  # Skip speed column
+        z=False,                      # Skip z-coordinate
+        use_artificial_players=True,  # Use fixed player slots (0–10)
+        every_n=5,                    # Downsample: keep every 5th frame
+        save=False,                   # Don’t save to disk
+        verbose=(True, False)        # Don’t print shapes or show plots
     )
 
-    # Access the first game's DataFrame
-    df = datasets[0]
+    # === Inspect shape of each game ===
+    for i, df in enumerate(datasets):
+        print(f"Game {i}: shape = {df.shape}")
 
-    # Example: print the artificial player mapping columns
-    print("\nExample player slots:")
-    print([col for col in df.columns if "_number" in col][:11])
-    print(df[[col for col in df.columns if "_number" in col][:11]].head())
-    
-main()
+    if False:
+        # === Optional: Look at artificial player mapping from the first game ===
+        df_first = datasets[0]
+        print("\nExample artificial player slots (first game):")
+        artificial_number_cols = [col for col in df_first.columns if "_number" in col][:11]
+        print(artificial_number_cols)
+        print(df_first[artificial_number_cols].head())
 
+#main()
 
