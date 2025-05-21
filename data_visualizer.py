@@ -17,19 +17,25 @@ class Visualizer:
         return list(all_teams)[0] if all_teams else None
 
 
-    def plot_ball_heatmap(self, game_idx=0, bins=100):
+    def plot_ball_heatmap(self, game_idx=0, bins=100, half=None):
         df = self.datasets[game_idx]
+        if half is not None:
+            df = df[df["half"] == half]
+
         x, y = df["Ball_x"], df["Ball_y"]
 
         plt.figure(figsize=(8, 6))
         sns.histplot(x=x, y=y, bins=bins, pthresh=0.1, cmap="magma")
-        plt.title(f"Ball Position Heatmap — Game {game_idx}")
+        title = f"Ball Position Heatmap — Game {game_idx}"
+        if half: title += f" (Half {half})"
+        plt.title(title)
         plt.xlabel("Ball X")
         plt.ylabel("Ball Y")
         plt.gca().set_aspect("equal", adjustable="box")
         plt.grid(True, linestyle="--", alpha=0.3)
         plt.tight_layout()
         plt.show()
+
 
     def plot_player_heatmap(self, game_idx=0, slot=0, side="team", bins=100):
         df = self.datasets[game_idx]
