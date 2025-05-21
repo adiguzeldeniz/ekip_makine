@@ -206,15 +206,48 @@ class FootballDataLoader:
             {"Time": [x[0] for x in mTime], "half": [x[1] for x in mTime]}
         )
 
-    def scrape_game(self, filename, in_play_only=True, speed=True, z=True, col5=True, use_artificial_players=False, verbose=True):
-        mTime, mBall, mFcn, mOpp = self.load_sec_game(filename)
-        home_name, away_name = self.extract_teams_from_filename(filename)
+    def scrape_game(
+        self,
+        filename,
+        in_play_only=True,
+        speed=True,
+        z=True,
+        col5=True,
+        use_artificial_players=False,
+        verbose=True
+    ):
+        # Load raw arrays
+        mTime, mBall, mTeam, mOpp = self.load_sec_game(filename)
+
+        # Extract actual team names from filename
+        team1, team2 = self.extract_teams_from_filename(filename)
+        opponent_name = team2 if self.team == team1 else team1
+
+        # Extract timestamp and ball coordinates
         df_time = self.scrape_time(mTime)
         df_ball = self.scrape_ball(mBall, just_game=False, speed=speed, col5=col5, z=z)
-        df_team = self.scrape_team(mFcn, name=home_name, speed=speed, z=z, use_artificial_players=use_artificial_players)
-        df_opp = self.scrape_team(mOpp, name=away_name, speed=speed, z=z, use_artificial_players=use_artificial_players)
 
+        # Use consistent naming
+        df_team = self.scrape_team(
+            mTeam,
+            name=self.team,
+            speed=speed,
+            z=z,
+            use_artificial_players=use_artificial_players
+        )
+
+        df_opp = self.scrape_team(
+            mOpp,
+            name="OPP",  # Fixed label for opponent
+            speed=speed,
+            z=z,
+            use_artificial_players=use_artificial_players
+        )
+
+        # Combine all dataframes
         df = pd.concat([df_time, df_ball, df_team, df_opp], axis=1)
+
+        # Optionally filter only in-play
         if in_play_only:
             df = df[df["game"] == 1]
 
@@ -224,8 +257,13 @@ class FootballDataLoader:
             print("Team shape:", df_team.shape)
             print("Opponent shape:", df_opp.shape)
             print("Total shape:", df.shape)
+            print(f"Opponent name detected from filename: {opponent_name}")
 
+        # Optionally return opponent name
+        df.attrs["opponent_name"] = opponent_name  # You can access this with df.attrs later
         return df
+
+
 
 
     def load_all_games(
