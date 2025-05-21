@@ -115,8 +115,8 @@ class FootballDataLoader:
 
     #     return pd.DataFrame(data_rows)
 
-    def scrape_team(self, mFcn, name="home", speed=True, z=True, use_artificial_indices=False):
-        if not use_artificial_indices:
+    def scrape_team(self, mFcn, name="home", speed=True, z=True, use_artificial_players=False):
+        if not use_artificial_players:
             # fallback to default behavior with real player numbers in column names
             numbers = [int(player[4]) for player in mFcn[0]]
             cols = []
@@ -206,18 +206,16 @@ class FootballDataLoader:
             {"Time": [x[0] for x in mTime], "half": [x[1] for x in mTime]}
         )
 
-    def scrape_game(self, filename, just_game=True, speed=True, z=True, col5=True, verbose=True):
-        
+    def scrape_game(self, filename, in_play_only=True, speed=True, z=True, col5=True, use_artificial_players=False, verbose=True):
         mTime, mBall, mFcn, mOpp = self.load_sec_game(filename)
         home_name, away_name = self.extract_teams_from_filename(filename)
         df_time = self.scrape_time(mTime)
         df_ball = self.scrape_ball(mBall, just_game=False, speed=speed, col5=col5, z=z)
-        df_team = self.scrape_team(mFcn, name=home_name, speed=speed, z=z, use_artificial_indices=True)
-        df_opp = self.scrape_team(mOpp, name=away_name, speed=speed, z=z, use_artificial_indices=True)
-
+        df_team = self.scrape_team(mFcn, name=home_name, speed=speed, z=z, use_artificial_players=use_artificial_players)
+        df_opp = self.scrape_team(mOpp, name=away_name, speed=speed, z=z, use_artificial_players=use_artificial_players)
 
         df = pd.concat([df_time, df_ball, df_team, df_opp], axis=1)
-        if just_game:
+        if in_play_only:
             df = df[df["game"] == 1]
 
         if verbose:
@@ -227,36 +225,53 @@ class FootballDataLoader:
             print("Opponent shape:", df_opp.shape)
             print("Total shape:", df.shape)
 
-
         return df
+
 
     def load_all_games(
         self,
         n_games=1,
-        just_game=True,
+        in_play_only=True,
         speed=True,
         z=True,
-        col5=True,
+        use_artificial_players=False,
         save=False,
         verbose=True,
     ):
+        """
+        Load and optionally save multiple games as pandas DataFrames.
+
+        Parameters:
+        - n_games (int): Number of games to load
+        - in_play_only (bool): Whether to keep only frames where the game is being played
+        - speed (bool): Whether to include player speed
+        - z (bool): Whether to include z-coordinates
+        - use_artificial_players (bool): If True, assigns players to artificial slots (0-10)
+        - save (str | False): Directory to save HDF5 files, or False to skip saving
+        - verbose (bool): Print shapes and show plots
+        """
+
         datasets = []
         _, sorted_sc = self.sort_games()
 
         for i, filename in enumerate(sorted_sc[:n_games]):
             print(f"Reading game {i+1}: {filename}")
-            df = self.scrape_game(filename, just_game, speed, z, col5, verbose)
+            df = self.scrape_game(
+                filename,
+                in_play_only=in_play_only,
+                speed=speed,
+                z=z,
+                col5=True,  # Hardcoded as requested
+                use_artificial_players=use_artificial_players,
+                verbose=verbose,
+            )
 
             if save:
                 os.makedirs(save, exist_ok=True)
                 base_name = os.path.splitext(os.path.basename(filename))[0]
-                # save_path = os.path.abspath(os.path.join(save, base_name + ".hdf5"))
-                save_path = os.path.abspath(
-                    os.path.join(save, base_name + ".hdf")
-                )  # ✅ Correct
+                save_path = os.path.abspath(os.path.join(save, base_name + ".hdf"))
 
                 print(f"Attempting to save to: {save_path}")
-
                 if os.path.exists(save_path):
                     print(f"[Warning] File already exists, deleting: {save_path}")
                     os.remove(save_path)
@@ -269,7 +284,41 @@ class FootballDataLoader:
 
             datasets.append(df)
 
+            if verbose:
+                # === Inspect the loaded DataFrame ===
+                print("\n=== DataFrame Overview ===")
+                print("Shape:", df.shape)
+                print("\nColumns:")
+                print(df.columns.tolist())
+                print("\nHead of Data:")
+                print(df.head(3).T)
+
+                # Missing data heatmap
+                import seaborn as sns
+                import matplotlib.pyplot as plt
+
+                plt.figure(figsize=(12, 4))
+                sns.heatmap(df.isna(), cbar=False)
+                plt.title("Missing Data Pattern")
+                plt.tight_layout()
+                plt.show()
+
+                # Plot 'game' column
+                if "game" in df.columns:
+                    plt.figure(figsize=(10, 2))
+                    plt.plot(df["game"].values, drawstyle="steps-post", color="black")
+                    plt.title("Game State Over Time")
+                    plt.xlabel("Frame")
+                    plt.ylabel("Game")
+                    plt.ylim(-0.1, 1.1)
+                    plt.grid(True, linestyle='--', alpha=0.5)
+                    plt.tight_layout()
+                    plt.show()
+                else:
+                    print("[Warning] 'game' column not found in DataFrame.")
+
         return datasets
+
 
 def main():
     data_dir = "/Users/denizadiguzel/FootballData_FromMathias_May2025/RestructuredData_2425"
@@ -278,28 +327,25 @@ def main():
 
     loader = FootballDataLoader(data_dir, team)
 
-    # Load first game as DataFrame
-    datasets = loader.load_all_games(n_games=1, just_game=True, speed=False, z=False, col5=False, save=False, verbose=True)
+    # Load and visualize the first game using artificial player indexing
+    datasets = loader.load_all_games(
+        n_games=1,
+        in_play_only=True,             # only keep frames where the game is active
+        speed=False,                   # omit speed values to simplify
+        z=False,                       # omit z-values
+        use_artificial_players=True,   # assign fixed slots to players (0–10)
+        save=False,                    # don't save to file
+        verbose=True                   # show column names, head, missing data heatmap, and 'game' signal
+    )
 
-    # === Inspect the loaded DataFrame ===
+    # Access the first game's DataFrame
     df = datasets[0]
-    print("\n=== DataFrame Overview ===")
-    print("Shape:", df.shape)
-    print("\nColumns:")
-    print(df.columns.tolist())
-    print("\nHead of Data:")
-    print(df.head(3).T)  # transpose for easier viewing of many columns
 
-    # Optional: show a small heatmap of missing data
-    import seaborn as sns
-    import matplotlib.pyplot as plt
-    plt.figure(figsize=(12, 4))
-    sns.heatmap(df.isna(), cbar=False)
-    plt.title("Missing Data Pattern")
-    plt.tight_layout()
-    plt.show()
-
-
+    # Example: print the artificial player mapping columns
+    print("\nExample player slots:")
+    print([col for col in df.columns if "_number" in col][:11])
+    print(df[[col for col in df.columns if "_number" in col][:11]].head())
+    
 main()
 
 
