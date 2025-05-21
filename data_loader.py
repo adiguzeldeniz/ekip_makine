@@ -2,6 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 
+
 class FootballDataLoader:
     def __init__(self, data_dir, team):
         self.data_dir = data_dir.rstrip("/")
@@ -19,8 +20,14 @@ class FootballDataLoader:
 
     def sort_games(self):
         sc_files, xg_files = self.list_all_games()
-        sc_dates = [int("".join(f.split("Day_20")[1].split("Z.pkl")[0].split("-"))) for f in sc_files]
-        xg_dates = [int("".join(f.split("Day_20")[1].split("Z.txt")[0].split("-"))) for f in xg_files]
+        sc_dates = [
+            int("".join(f.split("Day_20")[1].split("Z.pkl")[0].split("-")))
+            for f in sc_files
+        ]
+        xg_dates = [
+            int("".join(f.split("Day_20")[1].split("Z.txt")[0].split("-")))
+            for f in xg_files
+        ]
         sorted_indices = np.argsort(sc_dates)
         sorted_sc = [sc_files[i] for i in sorted_indices]
         sorted_xg = [xg_files[i] for i in sorted_indices]
@@ -33,8 +40,6 @@ class FootballDataLoader:
             return parts[1], parts[2]  # team1, team2
         return None, None
 
-
-
     def load_sec_game(self, filename):
         print(f"Loading {filename}")
         path = os.path.join(self.all_data_path, filename)
@@ -45,12 +50,18 @@ class FootballDataLoader:
     def load_machine_learning_xg(self, filename):
         path = os.path.join(self.xg_data_path, filename)
         values = {
-            "value": [], "half": [], "minute": [], "second": [],
-            "number": [], "team": [], "x": [], "y": []
+            "value": [],
+            "half": [],
+            "minute": [],
+            "second": [],
+            "number": [],
+            "team": [],
+            "x": [],
+            "y": [],
         }
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             for line in f:
-                v = line.strip().split(',')
+                v = line.strip().split(",")
                 values["value"].append(float(v[0]))
                 values["half"].append(int(v[1]))
                 values["minute"].append(int(v[2]))
@@ -59,7 +70,9 @@ class FootballDataLoader:
                 values["team"].append(v[6])
                 values["x"].append(v[7])
                 values["y"].append(v[8])
-        values["time"] = [m * 60 + s for m, s in zip(values["minute"], values["second"])]
+        values["time"] = [
+            m * 60 + s for m, s in zip(values["minute"], values["second"])
+        ]
         return values
 
     def load_pass_data(self, filename):
@@ -80,61 +93,96 @@ class FootballDataLoader:
 
     def scrape_ball(self, mBall, just_game=True, speed=True, col5=True, z=True):
         cols = {"Ball_x": [], "Ball_y": [], "game": []}
-        if z: cols["Ball_z"] = []
-        if speed: cols["Ball_Speed?"] = []
-        if col5: cols["Ball_Col5"] = []
+        if z:
+            cols["Ball_z"] = []
+        if speed:
+            cols["Ball_Speed?"] = []
+        if col5:
+            cols["Ball_Col5"] = []
 
         for row in mBall:
             cols["Ball_x"].append(row[0])
             cols["Ball_y"].append(row[1])
-            if z: cols["Ball_z"].append(row[2])
-            if speed: cols["Ball_Speed?"].append(row[3])
-            if col5: cols["Ball_Col5"].append(row[4])
+            if z:
+                cols["Ball_z"].append(row[2])
+            if speed:
+                cols["Ball_Speed?"].append(row[3])
+            if col5:
+                cols["Ball_Col5"].append(row[4])
             cols["game"].append(row[5])
 
         df = pd.DataFrame(cols)
         return df[df["game"] == 1] if just_game else df
 
-    def scrape_team(self, mFcn, name='home', speed=True, z=True):
+    def scrape_team(self, mFcn, name="home", speed=True, z=True):
         cols = []
-        for i in range(11):
+        numbers = np.zeros(mFcn[0].shape[0], dtype=int)
+
+        # reading the number to inizialize corretly the player
+        for i in range(mFcn[0].shape[0]):
+            numbers[i] = mFcn[0][i][4]
+
+        for i in numbers:
             cols += [f"{name}player_{i}_x", f"{name}player_{i}_y"]
-            if z: cols.append(f"{name}player_{i}_z")
-            if speed: cols += [f"{name}player_{i}_speed_x"]
+            if z:
+                cols.append(f"{name}player_{i}_z")
+            if speed:
+                cols += [f"{name}player_{i}_speed_x"]
             cols.append(f"{name}player_{i}_number")
 
-        data = [[] for _ in range(len(cols))]
+        df = pd.DataFrame(columns=cols)
+        # Initialize the DataFrame with NaN values
+        for col in df.columns:
+            df[col] = np.nan
 
-        for frame in mFcn:
-            for i in range(frame.shape[0]):
-                print(frame[10])
-                idx = 0
-                data[idx].append(frame[i][0]); idx += 1
-                data[idx].append(frame[i][1]); idx += 1
-                if z: data[idx].append(frame[i][2]); idx += 1
+        # Fill the DataFrame with player data
+        for idx, frame in enumerate(mFcn):
+            player_on_the_field = frame.shape[0]
+            players = frame[:, 4]
+            # find the missing players
+            missing_players = [i for i in numbers if i not in players]
+            remaining_players = [i for i in numbers if i not in missing_players]
+
+            # Fill data for players on the field
+            for i in range(player_on_the_field):
+                number = int(frame[i][4])
+                if number in remaining_players:
+                    col_prefix = f"{name}player_{number}"
+                    df.at[idx, f"{col_prefix}_x"] = frame[i][0]
+                    df.at[idx, f"{col_prefix}_y"] = frame[i][1]
+                    if z:
+                        df.at[idx, f"{col_prefix}_z"] = frame[i][2]
+                    if speed:
+                        df.at[idx, f"{col_prefix}_speed_x"] = frame[i][3]
+                    df.at[idx, f"{col_prefix}_number"] = frame[i][4]
+
+            # Fill NaN for missing players
+            for missing_player in missing_players:
+                col_prefix = f"{name}player_{missing_player}"
+                df.at[idx, f"{col_prefix}_x"] = np.nan
+                df.at[idx, f"{col_prefix}_y"] = np.nan
+                if z:
+                    df.at[idx, f"{col_prefix}_z"] = np.nan
                 if speed:
-                    data[idx].append(frame[i][3]); idx += 1
-                data[idx].append(frame[i][4]); idx += 1
-
-
-        df = pd.DataFrame(data).T
-        
-        df.columns = cols
-        df.plot.hist(subplots=True, figsize=(12, 8), bins=50, layout=(4, 3))
+                    df.at[idx, f"{col_prefix}_speed_x"] = np.nan
+                df.at[idx, f"{col_prefix}_number"] = missing_player
 
         return df
 
     def scrape_time(self, mTime):
-        return pd.DataFrame({"Time": [x[0] for x in mTime], "half": [x[1] for x in mTime]})
+        return pd.DataFrame(
+            {"Time": [x[0] for x in mTime], "half": [x[1] for x in mTime]}
+        )
 
-    def scrape_game(self, filename,  just_game=True, speed=True, z=True, col5=True, verbose=True):
+    def scrape_game(
+        self, filename, just_game=True, speed=True, z=True, col5=True, verbose=True
+    ):
         mTime, mBall, mFcn, mOpp = self.load_sec_game(filename)
-        home_name , away_name  = self.extract_teams_from_filename(filename)
+        home_name, away_name = self.extract_teams_from_filename(filename)
         df_time = self.scrape_time(mTime)
         df_ball = self.scrape_ball(mBall, just_game=False, speed=speed, col5=col5, z=z)
         df_team = self.scrape_team(mFcn, name=home_name, speed=speed, z=z)
         df_opp = self.scrape_team(mOpp, name=away_name, speed=speed, z=z)
-
 
         df = pd.concat([df_time, df_ball, df_team, df_opp], axis=1)
         if just_game:
@@ -149,8 +197,16 @@ class FootballDataLoader:
 
         return df
 
-
-    def load_all_games(self, n_games=1, just_game=True, speed=True, z=True, col5=True, save=False, verbose=True):
+    def load_all_games(
+        self,
+        n_games=1,
+        just_game=True,
+        speed=True,
+        z=True,
+        col5=True,
+        save=False,
+        verbose=True,
+    ):
         datasets = []
         _, sorted_sc = self.sort_games()
 
@@ -161,8 +217,10 @@ class FootballDataLoader:
             if save:
                 os.makedirs(save, exist_ok=True)
                 base_name = os.path.splitext(os.path.basename(filename))[0]
-                #save_path = os.path.abspath(os.path.join(save, base_name + ".hdf5"))
-                save_path = os.path.abspath(os.path.join(save, base_name + ".hdf"))  # ✅ Correct
+                # save_path = os.path.abspath(os.path.join(save, base_name + ".hdf5"))
+                save_path = os.path.abspath(
+                    os.path.join(save, base_name + ".hdf")
+                )  # ✅ Correct
 
                 print(f"Attempting to save to: {save_path}")
 
@@ -175,10 +233,8 @@ class FootballDataLoader:
                     print(f"Saved to {save_path}")
                 except Exception as e:
                     print(f"[ERROR] Saving failed: {e}")
-            
+
             # ✅ Always append the DataFrame, even if not saving
             datasets.append(df)
 
         return datasets
-
-
