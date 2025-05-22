@@ -272,9 +272,9 @@ class FootballDataLoader:
         return datasets
 
 def main():
-    data_dir = "/Users/denizadiguzel/FootballData_FromMathias_May2025/RestructuredData_2425"
+    data_dir = r"/Users/kirlo\Documents\Sanvi University Work\Year 3\AML\final project\FootballData\RestructuredData_2425"
     team = "FCK"
-    save_dir = "/Users/denizadiguzel/"
+    save_dir = r"/Users/kirlo\Documents\Sanvi University Work\Year 3\AML\final project"
 
     loader = FootballDataLoader(data_dir, team)
 
