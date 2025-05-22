@@ -1,182 +1,178 @@
+import pickle
 import os
+import matplotlib.pyplot as plt
+from ML_Functions_LoadArrays import *
 import numpy as np
-import pandas as pd
 
-class FootballDataLoader:
-    def __init__(self, data_dir, team):
-        self.data_dir = data_dir.rstrip("/")
-        self.team = team
-        self.team_path = os.path.join(self.data_dir, team)
-        self.all_data_path = os.path.join(self.team_path, "AllData")
-        self.xg_data_path = os.path.join(self.team_path, "XGdata")
-        self.passes_path = os.path.join(self.team_path, "Passes")
-        self.others_path = os.path.join(self.team_path, "Others")
+def get_frames_xg(mTime_masked, all_times, goals): 
+    '''
+    Gives the begining and end indices of the 10 seconds before and 1 second after the shot is taken. Indices of the mTime_masked list.
 
-    def list_all_games(self):
-        sc_files = sorted(os.listdir(self.all_data_path))
-        xg_files = sorted(os.listdir(self.xg_data_path))
-        return sc_files, xg_files
+    inputs:
+    mTime_masked (np.array): np.array(AllData["Times"][mask]), where mask is if ball is being played
+    all_times (np.array): np.array of the times of the shots taken, from the XG data
+    goals (np.array): np.array of the goals scored, from the XG data
 
-    def sort_games(self):
-        sc_files, xg_files = self.list_all_games()
-        sc_dates = [int("".join(f.split("Day_20")[1].split("Z.pkl")[0].split("-"))) for f in sc_files]
-        xg_dates = [int("".join(f.split("Day_20")[1].split("Z.txt")[0].split("-"))) for f in xg_files]
-        sorted_indices = np.argsort(sc_dates)
-        sorted_sc = [sc_files[i] for i in sorted_indices]
-        sorted_xg = [xg_files[i] for i in sorted_indices]
-        return np.array(sorted_xg), np.array(sorted_sc)
+    outputs:
+    first_frames (np.array): np.array of the begining indices of the 10 seconds before the shot is taken
+    final_frames (np.array): np.array of the end indices of the 1 second after the shot is taken
+    '''
+    
+    # need: goals = data2[10], mTime_masked = np.array(data3["Times"][mask]), mask = played.astype(bool)
 
-    def extract_teams_from_filename(self, filename):
-        file_copy = filename.copy()
-        parts = file_copy.split("_")
-        if parts[0] == "Game" and "Score" in parts:
-            return parts[1], parts[2]  # team1, team2
-        return None, None
+    final_frames = np.zeros(len(all_times), dtype=int)
+    k=0
+    for target_time in all_times:
+        if bool(goals[k]):
+            final_frames[k] = [i for i, t in enumerate(mTime_masked) if abs(t[0] -target_time) < 1.1][-1]  
+        else:
+            for i, t in enumerate(mTime_masked):
+                if t[0] - target_time > 1:  #So we take the time of the shot according to XG, and take an extra second
+                    break
+            final_frames[k] = i 
+        k+=1
 
-    def load_sec_game(self, filename):
-        print(f"Loading {filename}")
-        path = os.path.join(self.all_data_path, filename)
-        M = pd.read_pickle(path)
-        print("Data read.")
-        return M["Times"], M["Ball"], M[self.team], M["Opp"]
-
-    def load_machine_learning_xg(self, filename):
-        path = os.path.join(self.xg_data_path, filename)
-        values = {
-            "value": [], "half": [], "minute": [], "second": [],
-            "number": [], "team": [], "x": [], "y": []
-        }
-        with open(path, 'r') as f:
-            for line in f:
-                v = line.strip().split(',')
-                values["value"].append(float(v[0]))
-                values["half"].append(int(v[1]))
-                values["minute"].append(int(v[2]))
-                values["second"].append(int(v[3]))
-                values["number"].append(int(v[5]))
-                values["team"].append(v[6])
-                values["x"].append(v[7])
-                values["y"].append(v[8])
-        values["time"] = [m * 60 + s for m, s in zip(values["minute"], values["second"])]
-        return values
-
-    def load_pass_data(self, filename):
-        path = os.path.join(self.passes_path, filename)
-        try:
-            return pd.read_csv(path)
-        except Exception as e:
-            print(f"[Error loading passes] {filename}: {e}")
-            return None
-
-    def load_other_data(self, filename):
-        path = os.path.join(self.others_path, filename)
-        try:
-            return pd.read_csv(path)
-        except Exception as e:
-            print(f"[Error loading other file] {filename}: {e}")
-            return None
-
-    def scrape_ball(self, mBall, just_game=True, speed=True, col5=True, z=True):
-        cols = {"Ball_x": [], "Ball_y": [], "game": []}
-        if z: cols["Ball_z"] = []
-        if speed: cols["Ball_Speed?"] = []
-        if col5: cols["Ball_Col5"] = []
-
-        for row in mBall:
-            cols["Ball_x"].append(row[0])
-            cols["Ball_y"].append(row[1])
-            if z: cols["Ball_z"].append(row[2])
-            if speed: cols["Ball_Speed?"].append(row[3])
-            if col5: cols["Ball_Col5"].append(row[4])
-            cols["game"].append(row[5])
-
-        df = pd.DataFrame(cols)
-        return df[df["game"] == 1] if just_game else df
-
-    def scrape_team(self, mFcn, name='home', speed=True, z=True):
-        cols = []
-        for i in range(11):
-            cols += [f"{name}player_{i}_x", f"{name}player_{i}_y"]
-            if z: cols.append(f"{name}player_{i}_z")
-            if speed: cols += [f"{name}player_{i}_speed_x"]
-            cols.append(f"{name}player_{i}_number")
-
-        data = [[] for _ in range(len(cols))]
-
-        for frame in mFcn:
-            for i in range(frame.shape[0]):
-                print(frame[10])
-                idx = 0
-                data[idx].append(frame[i][0]); idx += 1
-                data[idx].append(frame[i][1]); idx += 1
-                if z: data[idx].append(frame[i][2]); idx += 1
-                if speed:
-                    data[idx].append(frame[i][3]); idx += 1
-                data[idx].append(frame[i][4]); idx += 1
+    first_frames = final_frames - 11 * 25
+    return first_frames, final_frames
 
 
-        df = pd.DataFrame(data).T
+def scrape_xg(Team , number_of_games) :
+    Xg_our_team = pd.DataFrame(columns=['XG', 'Half', 'Time', 'Team', 'Opponent'])
+    Xg_opponent = pd.DataFrame(columns=['XG', 'Half', 'Time', 'Team', 'Opponent'])
+    NamesXG, NamesSC = SortGames('pippo', Team)
+    for igame in range(number_of_games) :
+        ########################### All game data #############################
+        #mTime, mBall, mFcn, mOpp = SecLoad(Team, NamesSC, igame)
+        print("igame", igame, NamesXG[igame])
+        ######################### Event data ###################################
+        XGNumbers, XGTeam, XGValue, XGHalf, XGMin, XGSec, XGTimes, XGPos1, XGPos2 = (
+            MacihneLearning_OptaLoad(Team, NamesXG, igame)
+        )
         
-        df.columns = cols
-        df.plot.hist(subplots=True, figsize=(12, 8), bins=50, layout=(4, 3))
-
-        return df
-
-    def scrape_time(self, mTime):
-        return pd.DataFrame({"Time": [x[0] for x in mTime], "half": [x[1] for x in mTime]})
-
-    def scrape_game(self, filename,  just_game=True, speed=True, z=True, col5=True, verbose=True):
-        mTime, mBall, mFcn, mOpp = self.load_sec_game(filename)
-        home_name , away_name  = self.extract_teams_from_filename(filename)
-        df_time = self.scrape_time(mTime)
-        df_ball = self.scrape_ball(mBall, just_game=False, speed=speed, col5=col5, z=z)
-        df_team = self.scrape_team(mFcn, name=home_name, speed=speed, z=z)
-        df_opp = self.scrape_team(mOpp, name=away_name, speed=speed, z=z)
-
-
-        df = pd.concat([df_time, df_ball, df_team, df_opp], axis=1)
-        if just_game:
-            df = df[df["game"] == 1]
-
-        if verbose:
-            print("Time shape:", df_time.shape)
-            print("Ball shape:", df_ball.shape)
-            print("Team shape:", df_team.shape)
-            print("Opponent shape:", df_opp.shape)
-            print("Total shape:", df.shape)
-
-        return df
-
-
-    def load_all_games(self, n_games=1, just_game=True, speed=True, z=True, col5=True, save=False, verbose=True):
-        datasets = []
-        _, sorted_sc = self.sort_games()
-
-        for i, filename in enumerate(sorted_sc[:n_games]):
-            print(f"Reading game {i+1}: {filename}")
-            df = self.scrape_game(filename, just_game, speed, z, col5, verbose)
-
-            if save:
-                os.makedirs(save, exist_ok=True)
-                base_name = os.path.splitext(os.path.basename(filename))[0]
-                #save_path = os.path.abspath(os.path.join(save, base_name + ".hdf5"))
-                save_path = os.path.abspath(os.path.join(save, base_name + ".hdf"))  # ✅ Correct
-
-                print(f"Attempting to save to: {save_path}")
-
-                if os.path.exists(save_path):
-                    print(f"[Warning] File already exists, deleting: {save_path}")
-                    os.remove(save_path)
-
-                try:
-                    df.to_hdf(save_path, key="df", mode="w")
-                    print(f"Saved to {save_path}")
-                except Exception as e:
-                    print(f"[ERROR] Saving failed: {e}")
-            
-            # ✅ Always append the DataFrame, even if not saving
-            datasets.append(df)
-
-        return datasets
+        XGTeam = np.array(XGTeam, dtype=str)
+        XGValue = np.array(XGValue, dtype=float)
+        for ii in range(len(XGValue)) :
+            if XGValue[ii] < 0 or XGValue[ii] > 1 or np.isnan(XGValue[ii]):
+                print("XGValue < 0 or > 1 or NaN:", XGValue[ii])
+                print("XGTeam", XGTeam[ii])
+                print("XGHalf", XGHalf[ii])
+                print("XGMin", XGMin[ii])
+                print("XGSec", XGSec[ii])
+        if len(XGValue) == 0:
+            print("No XG data for this game: ", NamesXG[igame])
+            continue
+        XGHalf = np.array(XGHalf, dtype=int)
+        XGTimes = np.array(XGTimes, dtype=float)
+        mask_team_1 = XGTeam == Team
+        mask_team_2 = ~mask_team_1
+        Xg_our_team = pd.concat([
+            Xg_our_team,
+            pd.DataFrame({
+            'XG': XGValue[mask_team_1],
+            'Half': XGHalf[mask_team_1],
+            'Time': XGTimes[mask_team_1],
+            'Team': [XGTeam[mask_team_1][0] if mask_team_1.any() else None] * np.sum(mask_team_1),
+            'Opponent': [XGTeam[mask_team_2][0] if mask_team_2.any() else None] * np.sum(mask_team_1)
+            })
+        ], ignore_index=True)
+        Xg_opponent = pd.concat([
+            Xg_opponent,
+            pd.DataFrame({
+            'XG': XGValue[mask_team_2],
+            'Half': XGHalf[mask_team_2],
+            'Time': XGTimes[mask_team_2],
+            'Team': [XGTeam[mask_team_2][0] if mask_team_2.any() else None] * np.sum(mask_team_2),
+            'Opponent': [XGTeam[mask_team_1][0] if mask_team_1.any() else None] * np.sum(mask_team_2)
+            })
+        ], ignore_index=True)
+    Xg_our_team['XG'] = Xg_our_team['XG'].astype(float , errors='raise')
+    Xg_our_team = Xg_our_team[Xg_our_team['XG'] >= 0]
+    Xg_our_team['Half'] = Xg_our_team['Half'].astype(int , errors='raise')
+    Xg_our_team['Time'] = Xg_our_team['Time'].astype(float , errors='raise')
+    Xg_opponent['XG'] = Xg_opponent['XG'].astype(float , errors='raise')
+    Xg_opponent = Xg_opponent[Xg_opponent['XG'] >= 0]
+    Xg_opponent['Half'] = Xg_opponent['Half'].astype(int , errors='raise')
+    Xg_opponent['Time'] = Xg_opponent['Time'].astype(float , errors='raise')
+    return Xg_our_team, Xg_opponent
 
 
+def get_all_xg(Team, verbose=False):
+    NamesXG, NamesSC = SortGames('pippo', Team)
+    columns = ['XG', 'Time', 'Half','ball_x', 'ball_y', 'ball_z', 'ball_speed']
+    for i in range(1, 12):
+        columns += [f'us_{i}_x', f'us_{i}_y', f'us_{i}_speed']
+    for i in range(1, 12):
+        columns += [f'them_{i}_x', f'them_{i}_y', f'them_{i}_speed']
+
+    rows = []
+    for igame in range(30) :
+        Time, Ball, Us, Them = SecLoad(Team, NamesSC, igame)
+
+        XGNumbers, XGTeam, XGValue, XGHalf, XGMin, XGSec, XGTimes, XGPos1, XGPos2 = (
+            MacihneLearning_OptaLoad(Team, NamesXG, igame)
+        )
+
+        times_x = np.array([t[0] for t in Time])
+        
+        for i, t in enumerate(XGTimes):
+            if XGTeam[i] == Team and XGValue[i] > 0:
+                idxs = np.where(np.isclose(times_x, t, atol=0.05))[0]
+                if len(idxs) != 0: #time of XG is 'wrong; 
+                    idx = idxs[0]
+                    k=0
+                    sign = 1
+                    passed = True
+                    while Ball[idx][5] == 0:
+                        idx += sign*1
+                        if k == 25:
+                            if verbose:
+                                print('Cannot find the ball being played in this second')
+                            idx = idxs[0]
+                            sign = -1
+                        elif k > 75:
+                            if verbose:
+                                print('Nor 2 seconds before, so not including shot')
+                            passed = False
+                            break
+                        k+=1
+        
+                    if passed:
+                        if len(Us[idx]) < 11 or len(Them[idx]) < 11:
+                            if verbose:
+                                print(f"Red carded in game {igame}") 
+                                #If this prints multiple times, it means theres multiple shots where a person is missing
+        
+                            continue
+                        else:
+                            row = {
+                                'XG': XGValue[i],
+                                'Time': XGTimes[i],
+                                'Half': XGHalf[i],
+                                'ball_x': Ball[idx][0],
+                                'ball_y': Ball[idx][1],
+                                'ball_z': Ball[idx][2],
+                                'ball_speed': Ball[idx][3],
+                            }
+                            for j in range(11):
+                                row[f'us_{j+1}_x'] = Us[idx][j][0]
+                                row[f'us_{j+1}_y'] = Us[idx][j][1]
+                                row[f'us_{j+1}_speed'] = Us[idx][j][3]
+                            for j in range(11):
+                                row[f'them_{j+1}_x'] = Them[idx][j][0]
+                                row[f'them_{j+1}_y'] = Them[idx][j][1]
+                                row[f'them_{j+1}_speed'] = Them[idx][j][3]
+                            rows.append(row)
+
+    total_XG_data = pd.DataFrame(rows, columns=columns)
+    return total_XG_data
+
+
+
+tXG_all = get_all_xg('AAB', verbose=False) #1 team takes +- 1 min 20 sec
+print("Team AAB done")
+
+for team in ['AGF', 'BIF', 'FCK', 'FCM', 'FCN', 'LYN', 'RFC', 'SIF', 'SJE', 'VB', 'VFF']:
+    tXG = get_all_xg(team) 
+    print(f"Team {team} done")
+    tXG_all = pd.concat([tXG_all, tXG], ignore_index=True)
+    
