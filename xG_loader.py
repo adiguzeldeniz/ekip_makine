@@ -76,8 +76,6 @@ def get_all_xg(Team, verbose=False):
     total_XG_data = pd.DataFrame(rows, columns=columns)
     return total_XG_data
 
-
-
 tXG_all = get_all_xg('AAB', verbose=False) #1 team takes +- 1 min 
 print("Team AAB done")
 
