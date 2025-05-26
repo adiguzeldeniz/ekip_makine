@@ -394,21 +394,21 @@ def main():
 
     # === Load multiple games ===
     datasets = loader.load_all_games(
-        n_games= 2,                     # Or use "all" to load everything
+        n_games= 1,                     # Or use "all" to load everything
         in_play_only=True,            # Only use frames when game is in play
         speed=False,                  # Skip speed column
         z=False,                      # Skip z-coordinate
         use_artificial_players=True,  # Use fixed player slots (0–10)
         every_n=5,                    # Downsample: keep every 5th frame
         save=False,                   # Don’t save to disk
-        verbose=(True, False)        # Don’t print shapes or show plots
+        verbose=(True, True)        # Don’t print shapes or show plots
     )
 
     # === Inspect shape of each game ===
     for i, df in enumerate(datasets):
         print(f"Game {i}: shape = {df.shape}")
 
-    if False:
+    if True:
         # === Optional: Look at artificial player mapping from the first game ===
         df_first = datasets[0]
         print("\nExample artificial player slots (first game):")
@@ -416,5 +416,5 @@ def main():
         print(artificial_number_cols)
         print(df_first[artificial_number_cols].head())
 
-#main()
+main()
 
