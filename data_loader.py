@@ -347,9 +347,9 @@ class FootballDataLoader:
 
 def main():
     # === Setup paths ===
-    data_dir = "/Users/denizadiguzel/FootballData_FromMathias_May2025/RestructuredData_2425"
+    data_dir = r"Users\kirlo\Documents\Sanvi University Work\Year 3\AML\final project\FootballData\RestructuredData_2425"
     team = "FCK"
-    save_dir = "/Users/denizadiguzel/"  # Optional, used if save=True
+    save_dir = r"/Users/kirlo/Documents/Sanvi University Work/Year 3/AML/final project"  # Optional, used if save=True
 
     # === Initialize loader ===
     loader = FootballDataLoader(data_dir, team)
