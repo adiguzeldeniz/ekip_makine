@@ -3,8 +3,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import pandas as pd
-
-
+import pickle
+from tqdm import tqdm
 
 class FootballDataLoader:
     def __init__(self, data_dir, team):
@@ -210,8 +210,10 @@ class FootballDataLoader:
         self,
         filename,
         in_play_only=True,
-        speed=True,
-        z=True,
+        speed_ball=True,
+        speed_player=True,
+        ball_z=True,
+        player_z=True,
         col5=True,
         use_artificial_players=False,
         verbose=True
@@ -225,22 +227,22 @@ class FootballDataLoader:
 
         # Extract timestamp and ball coordinates
         df_time = self.scrape_time(mTime)
-        df_ball = self.scrape_ball(mBall, just_game=False, speed=speed, col5=col5, z=z)
+        df_ball = self.scrape_ball(mBall, just_game=False, speed=speed_ball, col5=col5, z=ball_z)
 
         # Use consistent naming
         df_team = self.scrape_team(
             mTeam,
             name=self.team,
-            speed=speed,
-            z=z,
+            speed=speed_player,
+            z=player_z,
             use_artificial_players=use_artificial_players
         )
 
         df_opp = self.scrape_team(
             mOpp,
             name="OPP",  # Fixed label for opponent
-            speed=speed,
-            z=z,
+            speed=speed_player,
+            z=player_z,
             use_artificial_players=use_artificial_players
         )
 
@@ -260,8 +262,9 @@ class FootballDataLoader:
             print(f"Opponent name detected from filename: {opponent_name}")
 
         # Optionally return opponent name
-        df.attrs["opponent_name"] = opponent_name  # You can access this with df.attrs later
+        df.attrs["opponent_name"] = opponent_name
         return df
+
 
 
 
@@ -270,13 +273,16 @@ class FootballDataLoader:
         self,
         n_games=1,
         in_play_only=True,
-        speed=True,
-        z=True,
+        speed_ball=True,
+        speed_player=True,
+        ball_z=True,
+        player_z=True,
         use_artificial_players=False,
         every_n=None,
         save=False,
         verbose=True,
     ):
+
         """
         Load and optionally save multiple games as pandas DataFrames.
 
@@ -313,12 +319,15 @@ class FootballDataLoader:
             df = self.scrape_game(
                 filename,
                 in_play_only=in_play_only,
-                speed=speed,
-                z=z,
-                col5=True,  # Hardcoded as always True
+                speed_ball=speed_ball,
+                speed_player=speed_player,
+                ball_z=ball_z,
+                player_z=player_z,
+                col5=True,
                 use_artificial_players=use_artificial_players,
                 verbose=verbose_info,
             )
+
 
             # Subsample by keeping every n-th frame
             if every_n is not None and every_n > 1:
@@ -379,30 +388,278 @@ class FootballDataLoader:
 
         return datasets
 
+    def load_game_for_cluster(self, max_games=None):
+        """
+        Loads unique games across all teams and extracts player positions and speeds
+        with jersey-based IDs. x and y positions are normalized to [-1, 1] per game.
+
+        Parameters:
+            max_games (int or None): Max number of unique games to load (for testing/debug)
+
+        Returns:
+            pd.DataFrame with columns: ["player_id", "x", "y", "z", "speed"]
+        """
+        import pickle
+
+        all_rows = []
+        seen_games = set()
+        loaded = 0
+
+        root_dir = os.path.dirname(self.team_path)
+        clubs = sorted(os.listdir(root_dir))
+
+        for club in clubs:
+            club_path = os.path.join(root_dir, club, "AllData")
+            if not os.path.isdir(club_path):
+                continue
+
+            for fname in os.listdir(club_path):
+                if not fname.endswith(".pkl"):
+                    continue
+
+                parts = fname.split("_")
+                if len(parts) < 6:
+                    continue
+
+                # Unique game ID to avoid duplicates
+                team1, team2 = parts[1], parts[2]
+                date = parts[-1].replace("Day_", "").replace("Z.pkl", "")
+                game_id = f"{team1}_{team2}_{date}"
+
+                if game_id in seen_games:
+                    continue
+                seen_games.add(game_id)
+
+                print(f"Processing {club}: {fname}")
+                fpath = os.path.join(club_path, fname)
+                try:
+                    with open(fpath, "rb") as f:
+                        M = pickle.load(f)
+                except Exception as e:
+                    print(f"[Error] Could not load {fpath}: {e}")
+                    continue
+
+                if club not in M:
+                    print(f"[Warning] Club {club} not found in {fname}")
+                    continue
+
+                mTeam = M[club]
+
+                try:
+                    x_all = np.concatenate([frame[:, 0] for frame in mTeam])
+                    y_all = np.concatenate([frame[:, 1] for frame in mTeam])
+                    if len(x_all) == 0 or len(y_all) == 0:
+                        print(f"[Skip] No player data in {fname}")
+                        continue
+                    x_min, x_max = np.min(x_all), np.max(x_all)
+                    y_min, y_max = np.min(y_all), np.max(y_all)
+                except Exception as e:
+                    print(f"[Warning] Failed to compute bounds for {fname}: {e}")
+                    continue
+
+                def normalize(val, min_val, max_val):
+                    if max_val - min_val == 0:
+                        return 0.0
+                    return 2 * (val - min_val) / (max_val - min_val) - 1
+
+                for frame in mTeam:
+                    for player in frame:
+                        jersey = int(player[4])
+                        player_id = f"player_{club}_{jersey}"
+                        x = normalize(player[0], x_min, x_max)
+                        y = normalize(player[1], y_min, y_max)
+                        z = player[2]
+                        speed = player[3]
+                        all_rows.append([player_id, x, y, z, speed])
+
+                loaded += 1
+                if max_games is not None and loaded >= max_games:
+                    print(f"[Info] Reached max_games limit ({max_games})")
+                    break
+
+            if max_games is not None and loaded >= max_games:
+                break
+
+        df = pd.DataFrame(all_rows, columns=["player_id", "x", "y", "z", "speed"])
+        return df
+
+
+import os
+import numpy as np
+import pandas as pd
+import pickle
+from tqdm import tqdm
+
+
+import os
+import numpy as np
+import pandas as pd
+
+
+class MultipleFootballDataLoader:
+    def __init__(self, data_dir, teams):
+        self.data_dir = data_dir.rstrip("/")
+        if isinstance(teams, str):
+            self.teams = [t.strip() for t in teams.split(",")]
+        elif isinstance(teams, list):
+            self.teams = teams
+        else:
+            raise ValueError("Teams should be a comma-separated string or list of team names.")
+
+    def load_game_for_cluster(self, max_games=None, player_z=True, every_n=1, in_play_only=True, save_path=None):
+        import pickle
+        from tqdm import tqdm
+
+        all_rows = []
+        seen_games = set()
+        loaded = 0
+
+        clubs = sorted(self.teams)
+
+        for club in tqdm(clubs, desc="Teams"):
+            club_path = os.path.join(self.data_dir, club, "AllData")
+            if not os.path.isdir(club_path):
+                continue
+
+            game_files = [f for f in os.listdir(club_path) if f.endswith(".pkl")]
+
+            for fname in tqdm(game_files, desc=f"Games ({club})", leave=False):
+                parts = fname.split("_")
+                if len(parts) < 6:
+                    continue
+
+                team1, team2 = parts[1], parts[2]
+                date = parts[-1].replace("Day_", "").replace("Z.pkl", "")
+                game_id = f"{team1}_{team2}_{date}"
+
+                if game_id in seen_games:
+                    continue
+                seen_games.add(game_id)
+
+                fpath = os.path.join(club_path, fname)
+                try:
+                    with open(fpath, "rb") as f:
+                        M = pickle.load(f)
+                except Exception as e:
+                    print(f"[Error] Could not load {fpath}: {e}")
+                    continue
+
+                if club not in (team1, team2):
+                    continue
+                if club not in M:
+                    print(f"[Warning] Skipping {game_id}: No data found for {club}")
+                    continue
+
+                mTime = M.get("Times")
+                mTeam = M[club]
+
+                if in_play_only and mTime is not None:
+                    in_play_mask = [x[1] == 1 for x in mTime]
+                    mTime = [x[0] for x, play in zip(mTime, in_play_mask) if play]
+                    mTeam = [frame for frame, play in zip(mTeam, in_play_mask) if play]
+                else:
+                    mTime = [x[0] for x in mTime] if mTime is not None else list(range(len(mTeam)))
+
+                if every_n > 1:
+                    mTime = mTime[::every_n]
+                    mTeam = mTeam[::every_n]
+
+                try:
+                    x_all = np.concatenate([frame[:, 0] for frame in mTeam])
+                    y_all = np.concatenate([frame[:, 1] for frame in mTeam])
+                    if len(x_all) == 0 or len(y_all) == 0:
+                        continue
+                    x_min, x_max = np.min(x_all), np.max(x_all)
+                    y_min, y_max = np.min(y_all), np.max(y_all)
+                except Exception as e:
+                    print(f"[Warning] Failed to compute bounds for {fname}: {e}")
+                    continue
+
+                def normalize(val, min_val, max_val):
+                    if max_val - min_val == 0:
+                        return 0.0
+                    return 2 * (val - min_val) / (max_val - min_val) - 1
+
+                for i in range(1, len(mTeam)):
+                    frame_prev = mTeam[i - 1]
+                    frame_curr = mTeam[i]
+                    t_prev = mTime[i - 1]
+                    t_curr = mTime[i]
+                    dt = t_curr - t_prev
+                    if dt == 0:
+                        continue
+
+                    jersey_map = {int(player[4]): player for player in frame_prev}
+                    for player in frame_curr:
+                        jersey = int(player[4])
+                        player_id = f"player_{club}_{jersey}"
+                        if jersey not in jersey_map:
+                            continue
+
+                        x_curr, y_curr = player[0], player[1]
+                        x_prev, y_prev = jersey_map[jersey][0], jersey_map[jersey][1]
+
+                        x_n = normalize(x_curr, x_min, x_max)
+                        y_n = normalize(y_curr, y_min, y_max)
+                        x_prev_n = normalize(x_prev, x_min, x_max)
+                        y_prev_n = normalize(y_prev, y_min, y_max)
+
+                        v_x = (x_n - x_prev_n) / dt
+                        v_y = (y_n - y_prev_n) / dt
+
+                        if player_z:
+                            z = player[2]
+                            all_rows.append([player_id, x_n, y_n, z, player[3], game_id, v_x, v_y])
+                        else:
+                            all_rows.append([player_id, x_n, y_n, player[3], game_id, v_x, v_y])
+
+                loaded += 1
+                if max_games is not None and loaded >= max_games:
+                    print(f"[Info] Reached max_games limit ({max_games})")
+                    break
+
+            if max_games is not None and loaded >= max_games:
+                break
+
+        columns = ["player_id", "x", "y"] + (["z"] if player_z else []) + ["speed", "match_id", "v_x", "v_y"]
+        df = pd.DataFrame(all_rows, columns=columns)
+
+        if save_path:
+            try:
+                df.to_hdf(save_path, key="df", mode="w")
+                print(f"[Saved] DataFrame saved to {save_path}")
+            except Exception as e:
+                print(f"[Error] Could not save to {save_path}: {e}")
+
+        return df
 
 
 
 
-def main():
+
+def main1():
     # === Setup paths ===
     data_dir = "/Users/denizadiguzel/FootballData_FromMathias_May2025/RestructuredData_2425"
     team = "FCK"
-    save_dir = "/Users/denizadiguzel/"  # Optional, used if save=True
+    save_dir = "/Users/denizadiguzel/"  
 
     # === Initialize loader ===
     loader = FootballDataLoader(data_dir, team)
 
     # === Load multiple games ===
     datasets = loader.load_all_games(
-        n_games= 1,                     # Or use "all" to load everything
-        in_play_only=True,            # Only use frames when game is in play
-        speed=False,                  # Skip speed column
-        z=False,                      # Skip z-coordinate
-        use_artificial_players=True,  # Use fixed player slots (0–10)
-        every_n=5,                    # Downsample: keep every 5th frame
-        save=False,                   # Don’t save to disk
-        verbose=(True, True)        # Don’t print shapes or show plots
+        n_games=1,
+        in_play_only=True,
+        speed_ball=False,
+        speed_player=False,
+        ball_z=False,
+        player_z=False,
+        use_artificial_players=True,
+        every_n=5,
+        save=False,
+        verbose=(True, False)
     )
+
 
     # === Inspect shape of each game ===
     for i, df in enumerate(datasets):
@@ -416,5 +673,26 @@ def main():
         print(artificial_number_cols)
         print(df_first[artificial_number_cols].head())
 
-main()
+def main():
+    data_dir = "/Users/denizadiguzel/FootballData_FromMathias_May2025/RestructuredData_2425"
+    teams = "AAB, AGF, BIF, FCK, FCM, FCN, LYN, RFC, SIF, SJE, VB, VFF"
+
+    loader = MultipleFootballDataLoader(data_dir, teams)
+
+    df_cluster = loader.load_game_for_cluster(
+        # max_games=100,
+        player_z=False,
+        every_n=20,
+        in_play_only=True,
+        save_path="/Users/denizadiguzel/cluster_data_all_vxy.h5"
+    )
+
+    print(df_cluster.head())
+    print(f"Total samples: {len(df_cluster)}")
+
+
+if __name__ == "__main__":
+    main()
+
+
 
