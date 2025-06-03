@@ -216,20 +216,21 @@ class FootballDataLoader:
         player_z=True,
         col5=True,
         use_artificial_players=False,
+        artificial_opponent=False,  # <-- NEW OPTION
         verbose=True
     ):
         # Load raw arrays
         mTime, mBall, mTeam, mOpp = self.load_sec_game(filename)
 
-        # Extract actual team names from filename
+        # Extract team names
         team1, team2 = self.extract_teams_from_filename(filename)
         opponent_name = team2 if self.team == team1 else team1
 
-        # Extract timestamp and ball coordinates
+        # Time and ball
         df_time = self.scrape_time(mTime)
         df_ball = self.scrape_ball(mBall, just_game=False, speed=speed_ball, col5=col5, z=ball_z)
 
-        # Use consistent naming
+        # Your team uses real or artificial players based on use_artificial_players
         df_team = self.scrape_team(
             mTeam,
             name=self.team,
@@ -238,18 +239,18 @@ class FootballDataLoader:
             use_artificial_players=use_artificial_players
         )
 
+        # Opponent uses artificial slots if artificial_opponent is True
         df_opp = self.scrape_team(
             mOpp,
-            name="OPP",  # Fixed label for opponent
+            name="OPP",
             speed=speed_player,
             z=player_z,
-            use_artificial_players=use_artificial_players
+            use_artificial_players=artificial_opponent
         )
 
-        # Combine all dataframes
+        # Combine all
         df = pd.concat([df_time, df_ball, df_team, df_opp], axis=1)
 
-        # Optionally filter only in-play
         if in_play_only:
             df = df[df["game"] == 1]
 
@@ -261,9 +262,9 @@ class FootballDataLoader:
             print("Total shape:", df.shape)
             print(f"Opponent name detected from filename: {opponent_name}")
 
-        # Optionally return opponent name
         df.attrs["opponent_name"] = opponent_name
         return df
+
 
 
 
@@ -278,10 +279,12 @@ class FootballDataLoader:
         ball_z=True,
         player_z=True,
         use_artificial_players=False,
+        artificial_opponent=False,  # <-- NEW
         every_n=None,
         save=False,
         verbose=True,
     ):
+
 
         """
         Load and optionally save multiple games as pandas DataFrames.
@@ -325,8 +328,10 @@ class FootballDataLoader:
                 player_z=player_z,
                 col5=True,
                 use_artificial_players=use_artificial_players,
+                artificial_opponent=artificial_opponent,  # <-- NEW
                 verbose=verbose_info,
             )
+
 
 
             # Subsample by keeping every n-th frame
@@ -637,58 +642,46 @@ class MultipleFootballDataLoader:
 
 
 
-def main1():
+def main():
     # === Setup paths ===
     data_dir = "/Users/denizadiguzel/FootballData_FromMathias_May2025/RestructuredData_2425"
     team = "FCK"
-    save_dir = "/Users/denizadiguzel/"  
 
     # === Initialize loader ===
     loader = FootballDataLoader(data_dir, team)
 
-    # === Load multiple games ===
+    # === Load two games with opponent artificial slot mapping only ===
     datasets = loader.load_all_games(
-        n_games=1,
+        n_games=2,
         in_play_only=True,
         speed_ball=False,
         speed_player=False,
         ball_z=False,
         player_z=False,
-        use_artificial_players=True,
+        use_artificial_players=False,     
+        artificial_opponent=True,           
         every_n=5,
         save=False,
         verbose=(True, False)
     )
 
-
-    # === Inspect shape of each game ===
+    # === Inspect variables ===
     for i, df in enumerate(datasets):
-        print(f"Game {i}: shape = {df.shape}")
+        print(f"\n=== Game {i+1} ===")
+        print("Shape:", df.shape)
 
-    if True:
-        # === Optional: Look at artificial player mapping from the first game ===
-        df_first = datasets[0]
-        print("\nExample artificial player slots (first game):")
-        artificial_number_cols = [col for col in df_first.columns if "_number" in col][:11]
-        print(artificial_number_cols)
-        print(df_first[artificial_number_cols].head())
+        # Opponent and team player number columns
+        number_cols = [col for col in df.columns if "_number" in col]
+        print(f"Number-related columns ({len(number_cols)}):")
+        for col in number_cols:
+            print(f"  {col}")
 
-def main():
-    data_dir = "/Users/denizadiguzel/FootballData_FromMathias_May2025/RestructuredData_2425"
-    teams = "AAB, AGF, BIF, FCK, FCM, FCN, LYN, RFC, SIF, SJE, VB, VFF"
+        print("\nFirst few rows of player identity columns:")
+        print(df[number_cols].head())
 
-    loader = MultipleFootballDataLoader(data_dir, teams)
+        # Check opponent name from attrs
+        print("Opponent name:", df.attrs.get("opponent_name", "Unknown"))
 
-    df_cluster = loader.load_game_for_cluster(
-        # max_games=100,
-        player_z=False,
-        every_n=20,
-        in_play_only=True,
-        save_path="/Users/denizadiguzel/cluster_data_all_vxy.h5"
-    )
-
-    print(df_cluster.head())
-    print(f"Total samples: {len(df_cluster)}")
 
 
 if __name__ == "__main__":
