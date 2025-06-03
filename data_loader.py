@@ -33,11 +33,11 @@ class FootballDataLoader:
         return np.array(sorted_xg), np.array(sorted_sc)
 
     def extract_teams_from_filename(self, filename):
-        file_copy = filename.copy()
-        parts = file_copy.split("_")
-        if parts[0] == "Game" and "Score" in parts:
+        parts = filename.split("_")
+        if len(parts) >= 4 and parts[0] == "Game" and "Score" in parts:
             return parts[1], parts[2]  # team1, team2
         return None, None
+
 
     def load_sec_game(self, filename):
         print(f"Loading {filename}")
@@ -642,50 +642,67 @@ class MultipleFootballDataLoader:
 
 
 
+# def main():
+#     # === Setup paths ===
+#     data_dir = "/Users/denizadiguzel/FootballData_FromMathias_May2025/RestructuredData_2425"
+#     team = "FCK"
+
+#     # === Initialize loader ===
+#     loader = FootballDataLoader(data_dir, team)
+
+#     # === Load two games with opponent artificial slot mapping only ===
+#     datasets = loader.load_all_games(
+#         n_games=2,
+#         in_play_only=True,
+#         speed_ball=False,
+#         speed_player=False,
+#         ball_z=False,
+#         player_z=False,
+#         use_artificial_players=False,     
+#         artificial_opponent=True,           
+#         every_n=5,
+#         save=False,
+#         verbose=(True, False)
+#     )
+
+#     # === Inspect variables ===
+#     for i, df in enumerate(datasets):
+#         print(f"\n=== Game {i+1} ===")
+#         print("Shape:", df.shape)
+
+#         # Opponent and team player number columns
+#         number_cols = [col for col in df.columns if "_number" in col]
+#         print(f"Number-related columns ({len(number_cols)}):")
+#         for col in number_cols:
+#             print(f"  {col}")
+
+#         print("\nFirst few rows of player identity columns:")
+#         print(df[number_cols].head())
+
+#         # Check opponent name from attrs
+#         print("Opponent name:", df.attrs.get("opponent_name", "Unknown"))
+
+
 def main():
-    # === Setup paths ===
     data_dir = "/Users/denizadiguzel/FootballData_FromMathias_May2025/RestructuredData_2425"
-    team = "FCK"
+    teams = "AAB, AGF, BIF, FCK, FCM, FCN, LYN, RFC, SIF, SJE, VB, VFF"
 
-    # === Initialize loader ===
-    loader = FootballDataLoader(data_dir, team)
+    loader = MultipleFootballDataLoader(data_dir, teams)
 
-    # === Load two games with opponent artificial slot mapping only ===
-    datasets = loader.load_all_games(
-        n_games=2,
-        in_play_only=True,
-        speed_ball=False,
-        speed_player=False,
-        ball_z=False,
+    df_cluster = loader.load_game_for_cluster(
+        # max_games=100,
         player_z=False,
-        use_artificial_players=False,     
-        artificial_opponent=True,           
-        every_n=5,
-        save=False,
-        verbose=(True, False)
+        every_n=2,
+        in_play_only=True,
+        save_path="/Users/denizadiguzel/cluster_data_all_vxy.h5"
     )
 
-    # === Inspect variables ===
-    for i, df in enumerate(datasets):
-        print(f"\n=== Game {i+1} ===")
-        print("Shape:", df.shape)
-
-        # Opponent and team player number columns
-        number_cols = [col for col in df.columns if "_number" in col]
-        print(f"Number-related columns ({len(number_cols)}):")
-        for col in number_cols:
-            print(f"  {col}")
-
-        print("\nFirst few rows of player identity columns:")
-        print(df[number_cols].head())
-
-        # Check opponent name from attrs
-        print("Opponent name:", df.attrs.get("opponent_name", "Unknown"))
+    print(df_cluster.head())
+    print(f"Total samples: {len(df_cluster)}")
 
 
-
-if __name__ == "__main__":
-    main()
+#if __name__ == "__main__":
+#    main()
 
 
 
