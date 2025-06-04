@@ -19,13 +19,11 @@ def generate_XG(gbm_best, ball, us, them):
     xylist[2] = ball[2]
 
     for i in range(11):
-        print(i*2+3, i*2+4)
         xylist[i*2+3] = us[i][0]
         xylist[i*2+4] = us[i][1]
-    for i in range(11):
         xylist[3+22+i*2] = them[i][0]
         xylist[3+22+i*2+1] = them[i][1]
-
+    
     xylist = np.array(xylist)
    
     us_dist = np.zeros(11)
