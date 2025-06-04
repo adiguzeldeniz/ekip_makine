@@ -13,34 +13,52 @@ def generate_XG(gbm_best, ball, us, them):
     '''
 
     xylist = np.zeros(3+ 22 + 22)
+    nr_of_us = len(us)
+    nr_of_them = len(them)
 
     xylist[0] = ball[0]
     xylist[1] = ball[1]
     xylist[2] = ball[2]
 
     for i in range(11):
-        xylist[i*2+3] = us[i][0]
-        xylist[i*2+4] = us[i][1]
-        xylist[3+22+i*2] = them[i][0]
-        xylist[3+22+i*2+1] = them[i][1]
+        if i >= nr_of_us:
+            xylist[i*2+3] = 10000
+            xylist[i*2+4] = 0
+        else:
+            xylist[i*2+3] = us[i][0]
+            xylist[i*2+4] = us[i][1]
+        if i >= nr_of_them:
+            xylist[3+22+i*2] = 10000
+            xylist[3+22+i*2+1] = 0
+        else:
+            xylist[3+22+i*2] = them[i][0]
+            xylist[3+22+i*2+1] = them[i][1]
     
-    xylist = np.array(xylist)
-   
-    us_dist = np.zeros(11)
-    them_dist = np.zeros(11)
-    for i in range(11):
-        us_dist[i]=np.sqrt((xylist[0] -xylist[3+i*2])**2+ (xylist[1]-xylist[3+i*2+1])**2)  # player_x^2 + player_y^2
-        them_dist[i] = np.sqrt((xylist[0] -xylist[3+22+i*2])**2+ (xylist[1]-xylist[3+22+i*2+1])**2)
+    us_x = xylist[3 + np.arange(11) * 2]
+    us_y = xylist[3 + np.arange(11) * 2 + 1]
+
+    us_dist = np.sqrt((xylist[0] - us_x) ** 2 + (xylist[1] - us_y) ** 2)
+
+    them_x = xylist[3 + 22 + np.arange(11) * 2]
+    them_y = xylist[3 + 22 + np.arange(11) * 2 + 1]
+
+    them_dist = np.sqrt((xylist[0] - them_x) ** 2 + (xylist[1] - them_y) ** 2)
+
     us_dist = sorted(us_dist)
     them_dist = sorted(them_dist)
 
     interleaved = np.array([val for pair in zip(us_dist, them_dist) for val in pair])
+    interleaved = [val if val < 10000 else np.nan for val in interleaved]  # Replace 10000 with a large value to avoid outliers
 
     lgbminput = np.concatenate((xylist[:3], interleaved))
     lgbminput = lgbminput.reshape(1, -1)
+
+
     feature_names = ['ball_x', 'ball_y', 'ball_z'] + \
     [f'us_{i}_ball_dist' for i in range(1, 12)] + \
     [f'them_{i}_ball_dist' for i in range(1, 12)]
+    
+    
     lgbminput_df = pd.DataFrame(lgbminput, columns=feature_names)
     xg = gbm_best.predict(lgbminput_df)    
     xg = np.exp(xg[0]) 
@@ -63,9 +81,11 @@ test_row += [item for i in range(22) for item in (np.random.randint(0, 100), np.
 df = pd.read_csv('LightGBM_train_data.csv')
 meow = get_gbm_best(df)
 
-NamesXG, NamesSC = SortGames('pippo', 'AAB')
-_, ball, us, them = SecLoad('AAB', NamesSC,9)
-generate_XG(meow,ball[200], us[200], them[200])
+NamesXG, NamesSC = SortGames('pippo', 'AGF')
+_, ball, us, them = SecLoad('AGF', NamesSC,10)
+index=152847
+
+generate_XG(meow,ball[index], us[index], them[index])
 
     
 #0.04618892114190254 best, 
