@@ -692,17 +692,17 @@ def main():
     df_cluster = loader.load_game_for_cluster(
         # max_games=100,
         player_z=False,
-        every_n=2,
+        every_n=5,
         in_play_only=True,
-        save_path="/Users/denizadiguzel/cluster_data_all_vxy.h5"
+        save_path="/Users/denizadiguzel/cluster_data_all_vxy_detailed.h5"
     )
 
     print(df_cluster.head())
     print(f"Total samples: {len(df_cluster)}")
 
 
-#if __name__ == "__main__":
-#    main()
+if __name__ == "__main__":
+    main()
 
 
 
