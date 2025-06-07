@@ -65,7 +65,7 @@ def generate_XG(gbm_best, ball, us, them):
     return xg
 
 def get_gbm_best(df):
-    new_params =  {'boosting_type': 'dart', 'learning_rate': np.float64(0.06630205132311011), 'max_depth': 8, 'num_leaves': 38, 'n_estimators': 328}
+    new_params = {'bagging_fraction': 0.5, 'bagging_freq': 1, 'boosting_type': 'gbdt', 'learning_rate': 0.038223831624696315, 'max_depth': 8, 'n_estimators': 167, 'num_leaves': 70}
     lgbm_best = LGBMRegressor(**new_params, objective='regression', verbose=-1)
     variables = ['ball_x', 'ball_y', 'ball_z'] + [f'us_{i}_ball_dist' for i in range(1, 12)] + [f'them_{i}_ball_dist' for i in range(1, 12)]
     X = df[variables]
