@@ -161,3 +161,26 @@ class RoleRegressor:
         plt.grid(axis='x', linestyle=':', alpha=0.5)
         plt.tight_layout()
         plt.show()
+
+    def plot_unseen_predictions_with_names(self, cluster_ids, top_n=30):
+        unseen_df = self.get_players_by_cluster(cluster_ids)
+        preds = self.predict(unseen_df)
+        unseen_df["predicted_role_score"] = preds
+
+        # Sort by predicted role score
+        unseen_df_sorted = unseen_df.sort_values("predicted_role_score", ascending=False)
+
+        # Limit to top_n players for readability
+        top_players = unseen_df_sorted.head(top_n)
+
+        plt.figure(figsize=(12, 0.5 * top_n))
+        bars = plt.barh(top_players["label"], top_players["predicted_role_score"], color='skyblue')
+        plt.axvline(0.0, linestyle="--", color="gray", alpha=0.4)
+        plt.axvline(0.5, linestyle="--", color="gray", alpha=0.4)
+        plt.axvline(1.0, linestyle="--", color="gray", alpha=0.4)
+
+        plt.xlabel("Predicted Role Score (0 = Defence, 1 = Attack)")
+        plt.title(f"Top {top_n} Predicted Role Scores for Excluded Clusters")
+        plt.gca().invert_yaxis()
+        plt.tight_layout()
+        plt.show()

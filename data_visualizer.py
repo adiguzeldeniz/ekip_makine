@@ -97,15 +97,18 @@ class Visualizer:
 
 
     def plot_ball_heatmap(self, game_idx=0, bins=100, half=None,
-                        save_path=None, show_axes=True, clim=None):
+                        save_path=None, show_axes=True, show_colorbar=True,
+                        clim=None, plt_title="Game"):
         df = self.datasets[game_idx]
         if half is not None:
             df = df[df["half"] == half]
 
         # Normalize coordinates
         x_min, x_max, y_min, y_max = self._get_bounds(df)
-        x, y = self._normalize_coordinates(df["Ball_x"].dropna(), df["Ball_y"].dropna(),
-                                        x_min, x_max, y_min, y_max)
+        x, y = self._normalize_coordinates(
+            df["Ball_x"].dropna(), df["Ball_y"].dropna(),
+            x_min, x_max, y_min, y_max
+        )
 
         # Compute 2D histogram
         counts, xedges, yedges = np.histogram2d(x, y, bins=bins)
@@ -116,9 +119,9 @@ class Visualizer:
                             vmin=clim[0] if clim else None,
                             vmax=clim[1] if clim else None)
 
-        # Colorbar (tall, narrow, right)
-        cbar = fig.colorbar(mesh, ax=ax, fraction=0.035, pad=0.02)
-        cbar.set_label("Density")
+        if show_colorbar:
+            cbar = fig.colorbar(mesh, ax=ax, fraction=0.035, pad=0.02)
+            cbar.set_label("Density")
 
         self._draw_pitch_elements(ax)
 
@@ -133,7 +136,7 @@ class Visualizer:
             ax.set_ylabel("")
             ax.grid(False)
 
-        title = f"Ball Position Heatmap — Game {game_idx}"
+        title = f"Ball Position Heatmap — {plt_title}"
         if half:
             title += f" (Half {half})"
         ax.set_title(title)
@@ -142,6 +145,67 @@ class Visualizer:
         if save_path:
             plt.savefig(save_path, dpi=300)
         plt.show()
+
+
+    def plot_team_heatmap(self, game_idx=0, team="FCK", bins=100, half=None,
+                        save_path=None, show_axes=True, show_colorbar=True,
+                        clim=None, plt_title=None):
+        df = self.datasets[game_idx]
+
+        if half is not None:
+            df = df[df["half"] == half]
+
+        # Use the same bounds as ball heatmap
+        x_min, x_max, y_min, y_max = self._get_bounds(df)
+
+        # Find all player_x and player_y columns for the given team
+        x_cols = [col for col in df.columns if col.startswith(f"{team}player_") and col.endswith("_x")]
+        y_cols = [col.replace("_x", "_y") for col in x_cols]
+
+        # Stack all player positions into one big list
+        all_x = pd.concat([df[col] for col in x_cols], ignore_index=True).dropna()
+        all_y = pd.concat([df[col] for col in y_cols], ignore_index=True).dropna()
+
+        # Normalize using the same method as for the ball
+        x_norm, y_norm = self._normalize_coordinates(all_x, all_y, x_min, x_max, y_min, y_max)
+
+        # 2D histogram in normalized coordinates
+        counts, xedges, yedges = np.histogram2d(x_norm, y_norm, bins=bins)
+
+        # Plot
+        fig, ax = plt.subplots(figsize=(9, 6))
+        mesh = ax.pcolormesh(xedges, yedges, counts.T, cmap="magma", shading="auto",
+                            vmin=clim[0] if clim else None,
+                            vmax=clim[1] if clim else None)
+
+        if show_colorbar:
+            cbar = fig.colorbar(mesh, ax=ax, fraction=0.035, pad=0.02)
+            cbar.set_label("Density")
+
+        self._draw_pitch_elements(ax)
+
+        if show_axes:
+            ax.set_xlabel("Normalized X")
+            ax.set_ylabel("Normalized Y")
+            ax.grid(True, linestyle="--", alpha=0.3)
+        else:
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.set_xlabel("")
+            ax.set_ylabel("")
+            ax.grid(False)
+
+        title = plt_title or f"{team} Player Heatmap"
+        if half:
+            title += f" (Half {half})"
+        ax.set_title(title)
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=300)
+        plt.show()
+
+
 
 
 
