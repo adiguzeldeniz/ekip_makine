@@ -684,7 +684,7 @@ class MultipleFootballDataLoader:
 
 
 def main():
-    data_dir = "\Users\kirlo\Documents\Sanvi University Work\Year 3\AML\final project\FootballData\RestructuredData_2425"
+    data_dir = r"C:\Users\kirlo\Documents\Sanvi University Work\Year 3\AML\final project\FootballData\RestructuredData_2425"
     teams = "AAB, AGF, BIF, FCK, FCM, FCN, LYN, RFC, SIF, SJE, VB, VFF"
 
     loader = MultipleFootballDataLoader(data_dir, teams)
